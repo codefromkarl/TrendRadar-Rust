@@ -17,6 +17,7 @@
 - [invariants.md](./invariants.md)
 - [api-contracts.md](./api-contracts.md)
 - [system-test-template.md](./system-test-template.md)
+- [parallel-migration-plan.md](./parallel-migration-plan.md)
 
 ## 2. 迁移原则
 

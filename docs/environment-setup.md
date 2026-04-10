@@ -138,7 +138,7 @@ just install-githooks
 - `cargo-deny 0.18.3`
 - `cargo-llvm-cov 0.6.21`
 
-同时，`just env-check` 与 `just verify-basic` 已经在当前机器验证通过。
+同时，`just env-check`、`just verify-basic` 与 `just doc` 已经在当前机器验证通过。
 
 ### 命令入口分层
 
@@ -148,15 +148,18 @@ just install-githooks
   用于检查 Git、Rust 工具链、组件和扩展命令是否就绪
 - `just install-githooks`
   用于启用当前仓库自带的 `pre-commit` 和 `pre-push`
+- `just doc`
+  用于生成当前 workspace 的本地 API 文档，不包含依赖 crate
 - `just verify-basic`
   用于在初始化阶段跑基础格式化、检查和工作区测试
 - `just verify`
   用于在扩展工具安装完成后跑完整门禁
 
-这三个入口分别对应：
+这些入口分别对应：
 
 - 环境是否齐备
 - 本地提交和推送前是否自动拦截基础问题
+- 当前 workspace 文档是否可以在本地生成并进入 `target/doc`
 - 当前改动是否具备基础可验证性
 - 是否达到完整门禁标准
 
@@ -458,6 +461,12 @@ test:
 check:
     cargo check --workspace --all-targets
 
+doc:
+    cargo doc --workspace --no-deps
+
+doc-open:
+    cargo doc --workspace --no-deps --open
+
 docs-remind:
     ./scripts/doc_sync_reminder.sh
 
@@ -473,6 +482,7 @@ verify: fmt-check lint test
 注意：
 
 - `just docs-remind` 会根据当前 Git 变更范围给出文档同步提醒
+- `just doc` 只生成当前 workspace 的文档，产物位于 `target/doc`
 - `just test` 依赖 `cargo-nextest`
 - `just deny` 依赖 `cargo-deny`
 - `just cov` 依赖 `cargo-llvm-cov`

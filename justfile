@@ -31,6 +31,12 @@ test-doc:
 check:
     cargo check --workspace --all-targets
 
+doc:
+    cargo doc --workspace --no-deps
+
+doc-open:
+    cargo doc --workspace --no-deps --open
+
 docs-remind:
     ./scripts/doc_sync_reminder.sh
 
