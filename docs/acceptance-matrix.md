@@ -33,11 +33,16 @@
 
 ## 当前 Wave 0 证据
 
-- 真实 fixture：
-  - `fixtures/system/config/minimal-valid.json`
-  - `fixtures/system/config/invalid-empty-timezone.json`
-- 真实测试：
-  - `crates/app/tests/config_to_bootstrap.rs`
-- 当前验证命令：
-  - `cargo fmt --all --check`
-  - `cargo test --workspace`
+真实 fixture：
+
+- `fixtures/system/config/minimal-valid.json`
+- `fixtures/system/config/invalid-empty-timezone.json`
+
+真实测试：
+
+- `crates/app/tests/config_to_bootstrap.rs`
+
+当前验证命令：
+
+- `cargo fmt --all --check`
+- `cargo test --workspace`
