@@ -14,10 +14,13 @@
 - `fixtures/system/` 预留给系统性测试使用
 - fixture 必须尽量稳定、可脱敏、可重复
 - 如果样例来自旧系统真实数据，必须注明来源和裁剪方式
+- fixture 应在实现前先落地，不要在功能完成后再补
+- fixture 路径应能直接映射到验收矩阵中的测试入口
 
 ## 推荐分组
 
 - `fixtures/system/config/`
 - `fixtures/system/fetch/`
 - `fixtures/system/analyze/`
+- `fixtures/system/storage/`
 - `fixtures/system/report/`

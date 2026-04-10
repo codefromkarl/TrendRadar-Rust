@@ -11,6 +11,15 @@
 - 有可比较输出
 - 有固定验证命令
 
+同时，这份文档也定义一个默认工作流：
+
+1. 先写契约和验收项
+2. 再补 fixture
+3. 再写失败测试
+4. 最后才进入实现
+
+如果一个工作包还没有 fixture、测试入口和验证命令，就不应视为“开始实现完成”。
+
 ## 适用范围
 
 当前仓库里的系统性测试，优先覆盖这些场景：
@@ -38,20 +47,34 @@
 建议按下面方式组织：
 
 ```text
+src/
+  lib.rs
 tests/
+  common/
+    mod.rs
+  system.rs
   system/
     README.md
     config_to_bootstrap.rs
     fetch_to_domain.rs
     analyze_pipeline.rs
+    storage_to_report.rs
 fixtures/
   system/
     config/
     fetch/
     analyze/
+    storage/
     report/
 tests/snapshots/
 ```
+
+说明：
+
+- 根工作区通过 `src/lib.rs` 提供一个最小 test harness
+- `tests/system.rs` 作为系统性测试入口，挂载 `tests/system/*.rs`
+- `tests/common/mod.rs` 放共享 fixture loader、断言 helper、固定时间构造等通用能力
+- fixture 继续统一放在 `fixtures/system/` 下，避免散落到各 crate
 
 ## 一个基础系统测试的最小构成
 
@@ -63,6 +86,20 @@ tests/snapshots/
 4. 期望结果：结构化断言或快照。
 5. 验证入口：本地和 CI 用哪条命令跑。
 
+## 默认流程
+
+新增一个模块或工作包时，默认按下面顺序推进：
+
+1. 在契约文档中写明输入、输出、错误语义
+2. 在验收矩阵中补 fixture / 测试入口 / 最低验证命令
+3. 先补最小 fixture，必要时同时补合法与非法样例
+4. 先写 crate 内测试，再写系统性测试
+5. 确认测试先失败，再补实现
+6. 实现完成后，回填快照或更完整的结构断言
+7. 最后跑 `cargo test --workspace`，必要时再跑 `just verify`
+
+不要采用“先把功能写完，最后再集中补测试”的方式。
+
 ## Rust 测试模板
 
 ```rust
@@ -73,21 +110,36 @@ use anyhow::Result;
 #[test]
 fn system_case_name() -> Result<()> {
     // 1. 准备 fixture
-    // let input = std::fs::read_to_string("fixtures/system/...");
+    // let input = crate::common::load_json_fixture("...")?;
 
     // 2. 调用跨 crate 链路
     // let config = trendradar_config::...;
-    // let output = trendradar_app::...;
+    // let output = trendradar_fetch::...;
 
     // 3. 做结构化断言
     // assert_eq!(output.xxx, expected.xxx);
 
     // 4. 如有必要，做 snapshot
-    // insta::assert_yaml_snapshot!(output);
+    // insta::assert_json_snapshot!(output);
 
     Ok(())
 }
 ```
+
+## 推荐测试分层
+
+- 单元测试：
+  放在 crate 的 `src/` 内，验证纯函数、局部规则、错误分支
+- crate 级集成测试：
+  放在各 crate 自己的 `tests/` 目录，验证一个 crate 对外暴露的稳定接口
+- 工作区系统测试：
+  放在根 `tests/system/*.rs`，验证跨 crate 链路和固定 fixture
+
+判断标准：
+
+- 如果只保护一个 crate 内部规则，用单元测试
+- 如果要验证 crate 对外 API，用 crate 集成测试
+- 如果涉及两个及以上 crate，用系统性测试
 
 ## 测试用例模板
 
@@ -130,6 +182,19 @@ fn system_case_name() -> Result<()> {
 - fixture 目录按能力分组，不按临时人名或日期命名
 - snapshot 名称与测试函数保持一致
 
+## 共享 helper 约束
+
+- fixture 读取优先通过 `tests/common/mod.rs` 的共享 loader 完成
+- 通用 helper 只放“读取样例、固定时间、共享断言”这类稳定能力
+- 不要把业务逻辑偷偷塞进 helper，否则系统测试会失去可读性
+
+## Snapshot 使用建议
+
+- 对顶层 JSON 输出、聚合结果、系统链路结果，优先考虑 `insta`
+- 对数值小、结构稳定的结果，可以用 inline snapshot
+- 当输出结构变大、需要多人审查时，再切到 `tests/snapshots/` 文件快照
+- snapshot 更新必须和 fixture / 契约更新一起出现，不能只改 snapshot 不解释原因
+
 ## 推荐验证命令
 
 在当前仓库中，系统性测试至少应纳入下面这些入口：
@@ -154,11 +219,15 @@ cargo llvm-cov nextest --workspace --all-features
 - 有对应 fixture 或明确的内联样例
 - 能用固定命令重复执行
 - 能从失败结果中看出是哪条链路出错
+- 验收矩阵已标出测试入口和最低验证命令
 
 ## 当前已落地样例
 
 当前仓库已经补了第一条真实样例：
-
+- `crates/app/tests/config_to_bootstrap.rs`
+- `tests/system/fetch_to_domain.rs`
+- `tests/system/analyze_pipeline.rs`
+- `tests/system/storage_to_report.rs`
 - fixture：`fixtures/system/config/minimal-valid.json`
 - fixture：`fixtures/system/config/invalid-empty-timezone.json`
 - 测试：`crates/app/tests/config_to_bootstrap.rs`

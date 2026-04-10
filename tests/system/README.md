@@ -13,6 +13,8 @@
 - 一个测试文件对应一条链路或一类能力
 - 对应 fixture 放在 `fixtures/system/` 下
 - 如果输出适合做快照，统一放入 `tests/snapshots/`
+- 工作区入口由 `tests/system.rs` 统一挂载
+- 共享 helper 放在 `tests/common/mod.rs`
 
 ## 命名建议
 
@@ -20,6 +22,7 @@
 - `fetch_to_domain.rs`
 - `analyze_pipeline.rs`
 - `storage_roundtrip.rs`
+- `storage_to_report.rs`
 
 ## 新增测试时至少要回答的问题
 
@@ -27,6 +30,12 @@
 - 输入样例从哪里来
 - 期望输出如何比较
 - 失败时如何快速定位是配置、抓取、分析还是输出层的问题
+
+## 默认要求
+
+- 新增系统测试时，优先复用 `tests/common/mod.rs` 的 fixture loader
+- 如果输出结构稳定且适合审查，优先补 `insta` snapshot
+- 系统测试应在对应模块进入实现前就先落骨架，而不是收尾时再补
 
 ## 参考模板
 
