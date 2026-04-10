@@ -1,0 +1,10 @@
+[
+  {
+    "title": "Async Rust Patterns",
+    "url": "https://blog.rust-lang.org/async-patterns"
+  },
+  {
+    "title": "Cargo Tips Weekly",
+    "url": "https://blog.rust-lang.org/cargo-tips-weekly"
+  }
+]
