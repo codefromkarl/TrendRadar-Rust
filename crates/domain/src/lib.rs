@@ -16,6 +16,12 @@ pub enum TrendRadarError {
         /// 具体错误说明。
         message: String,
     },
+    /// 存储失败。
+    #[error("storage error: {message}")]
+    Storage {
+        /// 具体错误说明。
+        message: String,
+    },
 }
 
 /// 热榜新闻条目。
