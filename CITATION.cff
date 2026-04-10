@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+title: TrendRadar Rust
+message: "If you use this repository for learning or reference, please cite it."
+type: software
+license: GPL-3.0-only
+authors:
+  - family-names: Karl
+    given-names: Codefromkarl
+repository-code: "https://github.com/codefromkarl/TrendRadar-Rust"
+abstract: "A Rust workspace migration of TrendRadar focused on environment readiness, verification workflows, and AI-assisted engineering practices."
+keywords:
+  - rust
+  - workspace
+  - migration
+  - rss
+  - trend-monitoring
+  - ai-assisted-development

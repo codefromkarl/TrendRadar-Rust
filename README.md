@@ -1,8 +1,10 @@
 # TrendRadar Rust
 
+本项目用于个人学习 Rust 使用，仅供参考，欢迎交流。
+
 TrendRadar 的 Rust 工作区重构版本。
 
-这个仓库的目标不是把旧 Python 项目逐文件翻译成 Rust，而是先建立一个可验证、可维护、适合 AI 协作推进的 Rust 内核，再逐步迁移抓取、调度、分析、存储和输出链路。
+这个仓库的目标不是把旧 Python 项目逐文件翻译成 Rust，而是先建立一个可验证、可维护、适合 AI 协作推进的 Rust 趋势监控内核，再逐步迁移抓取、调度、分析、存储和输出链路。
 
 ## 当前定位
 
@@ -16,6 +18,13 @@ TrendRadar 的 Rust 工作区重构版本。
 - [实施计划](./docs/implementation-plan.md)
 - [AI 协作规则](./AGENTS.md)
 - [Git 工作流与提交规范](./docs/git-workflow.md)
+
+如果你在搜索的是这些方向，这个仓库当前都相关：
+
+- Rust workspace 迁移实践
+- Rust 工程环境与验证闭环
+- AI 协作开发与 Git 规范
+- 趋势监控 / RSS / 新闻聚合的 Rust 重构
 
 ## 为什么单独做 Rust 重构
 
@@ -43,7 +52,23 @@ TrendRadar 的 Rust 工作区重构版本。
 
 这意味着仓库已经从“能放代码的目录”进入了“可审查、可验证、可并行协作的迁移工地”状态。
 
-## 快速开始
+## 当前可验证内容
+
+- `config -> app::bootstrap` 的最小系统性测试链路已落地
+- `just env-check` 可验证本机工具链和扩展工具
+- `just verify-basic` 可验证格式、编译和工作区测试
+- CI 已接入 `fmt`、`clippy`、`nextest` 和 doctest
+
+## Examples / Proof
+
+当前仓库还处在环境准备和迁移基线阶段，因此这里提供的是“工程可验证性”的证明，而不是完整产品输出：
+
+- `just env-check` 已验证通过
+- `just verify-basic` 已验证通过
+- `config -> app::bootstrap` 的 fixture 驱动测试已通过
+- Git hooks、提交模板和并行迁移规范已落地
+
+## Install / Quickstart
 
 ### 1. 安装工具链和本地工具
 
@@ -139,6 +164,17 @@ just verify
 如果后续要并行推进多个迁移任务，先按 crate、契约、fixture 或环境脚本切分，不要混写成“大分支、大提交”。
 
 详细规则见：[Git 工作流与提交规范](./docs/git-workflow.md)。
+
+## Contributing / Support
+
+当前仓库主要用于个人学习 Rust 与迁移实践，但欢迎围绕下面这些方向交流：
+
+- Rust 工程结构与 workspace 切分
+- AI 辅助迁移和验证闭环
+- 趋势监控、RSS、聚合和排序建模
+- Git 并行协作和提交规范
+
+如果你发现问题或有改进建议，可以提交 Issue 或发起讨论。
 
 ## License
 
