@@ -21,6 +21,18 @@
 - 存储写入后的结果一致性
 - 结构化输出和快照结果
 
+## 当前已绑定的真实样例
+
+在进入完整功能迁移前，当前仓库已经有一条真实、可重复执行的最小系统链路：
+
+- 链路：`config -> app::bootstrap`
+- 合法 fixture：`fixtures/system/config/minimal-valid.json`
+- 非法 fixture：`fixtures/system/config/invalid-empty-timezone.json`
+- 测试入口：`crates/app/tests/config_to_bootstrap.rs`
+- 验证命令：`cargo test --workspace`
+
+后续新增系统性测试时，建议先模仿这条链路，再扩展到抓取、分析、存储和输出组合测试。
+
 ## 测试文件组织
 
 建议按下面方式组织：
