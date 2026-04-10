@@ -1,0 +1,49 @@
+[workspace]
+members = [
+    "crates/domain",
+    "crates/config",
+    "crates/schedule",
+    "crates/analyze",
+    "crates/storage",
+    "crates/fetch",
+    "crates/report",
+    "crates/app",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+license = "GPL-3.0-only"
+authors = ["TrendRadar Contributors"]
+repository = "https://github.com/sansan0/TrendRadar"
+description = "TrendRadar Rust workspace"
+readme = "README.md"
+keywords = ["trendradar", "news", "rss", "radar"]
+categories = ["command-line-utilities", "development-tools"]
+
+[workspace.dependencies]
+anyhow = "1.0"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+todo = "deny"
+panic = "deny"
+
+[profile.dev]
+debug = 1
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
