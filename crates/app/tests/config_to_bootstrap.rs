@@ -12,26 +12,27 @@ fn fixture_path(name: &str) -> PathBuf {
 }
 
 #[test]
-fn valid_config_fixture_bootstraps_successfully() {
-    let fixture = fs::read_to_string(fixture_path("minimal-valid.json"))
-        .expect("config fixture should be readable");
-
-    let config = load_config_from_json_str(&fixture).expect("fixture should load as config");
+fn valid_config_fixture_bootstraps_successfully() -> Result<(), Box<dyn std::error::Error>> {
+    let fixture = fs::read_to_string(fixture_path("minimal-valid.json"))?;
+    let config = load_config_from_json_str(&fixture)?;
 
     assert_eq!(config.timezone, "Asia/Shanghai");
     assert_eq!(config.platforms, vec!["weibo", "zhihu"]);
     assert!(bootstrap_with_config(&config).is_ok());
+    Ok(())
 }
 
 #[test]
-fn invalid_config_fixture_is_rejected() {
-    let fixture = fs::read_to_string(fixture_path("invalid-empty-timezone.json"))
-        .expect("config fixture should be readable");
-
-    let error = load_config_from_json_str(&fixture).expect_err("fixture should be rejected");
+fn invalid_config_fixture_is_rejected() -> Result<(), Box<dyn std::error::Error>> {
+    let fixture = fs::read_to_string(fixture_path("invalid-empty-timezone.json"))?;
+    let error = match load_config_from_json_str(&fixture) {
+        Ok(_) => return Err("fixture should be rejected".into()),
+        Err(error) => error,
+    };
 
     assert_eq!(
         error.to_string(),
         "invalid config: timezone must not be empty"
     );
+    Ok(())
 }
