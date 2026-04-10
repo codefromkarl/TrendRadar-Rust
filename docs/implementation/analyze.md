@@ -15,9 +15,9 @@
 
 ## 本轮范围
 
-- 扩展基础评分逻辑
-- 准备 analyze 输入 fixture
-- 先补结构断言或 fixture 测试
+- 已扩展基础评分逻辑到排序与来源聚合
+- 已准备 analyze 输入 fixture
+- 已补结构断言与 fixture 测试
 
 ## 暂不处理
 
@@ -35,6 +35,12 @@
 - 同一 fixture 输出稳定
 - 结果字段可被快照比较
 - 逻辑保持纯函数化
+
+## 当前进展
+
+- 已提供 `score_news`、`rank_news`、`group_news_by_source`
+- 已用固定 fixture 覆盖排序结果与来源聚合结果
+- 更高阶过滤与综合排序仍留待后续阶段
 
 ## 验证命令
 

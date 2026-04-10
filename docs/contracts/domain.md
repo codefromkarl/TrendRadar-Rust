@@ -63,10 +63,12 @@
 当前错误分类：
 
 - `TrendRadarError::InvalidConfig { message }`
+- `TrendRadarError::Storage { message }`
 
 首版稳定要求：
 
 - 配置校验失败统一进入 `InvalidConfig`
+- SQLite 建库、写入、查询失败统一进入 `Storage`
 - 错误消息必须包含可定位的字段或失败原因
 
 后续预留分类：

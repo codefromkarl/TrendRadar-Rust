@@ -16,9 +16,9 @@
 
 ## 本轮范围
 
-- RSS adapter
-- 热榜 adapter
-- 归一化映射
+- 已实现 RSS fixture adapter
+- 已实现热榜 fixture adapter
+- 已实现最小归一化映射
 
 ## 暂不处理
 
@@ -36,6 +36,12 @@
 - 至少一个 RSS 源打通
 - 至少一个热榜源打通
 - 成功结果进入统一模型
+
+## 当前进展
+
+- 已通过 `FixtureRssFetcher` 打通一个 RSS 源到 `NewsItem`
+- 已通过 `FixtureHotlistFetcher` 打通一个热榜源到 `NewsItem`
+- 真实网络抓取、重试与限流仍留待后续阶段
 
 ## 验证命令
 

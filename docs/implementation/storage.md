@@ -15,9 +15,9 @@
 
 ## 本轮范围
 
-- 仓储 trait 收敛
-- SQLite 最小实现
-- 固定 fixture 测试
+- 已收敛仓储 trait
+- 已实现 SQLite 最小实现
+- 已补固定 fixture 测试
 
 ## 暂不处理
 
@@ -35,6 +35,12 @@
 - 固定样例写入读取稳定
 - 去重规则明确
 - 错误语义可断言
+
+## 当前进展
+
+- 已提供 `SqliteNewsRepository::in_memory()`
+- 已固定 `(source_id, title)` 去重并保留更优 `rank`
+- 真实文件数据库路径与迁移框架仍留待后续阶段
 
 ## 验证命令
 

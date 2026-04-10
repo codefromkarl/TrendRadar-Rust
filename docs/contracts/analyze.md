@@ -7,6 +7,8 @@
 ## 当前实现基线
 
 - `score_news`
+- `rank_news`
+- `group_news_by_source`
 
 ## 需要固化的契约
 
@@ -38,13 +40,14 @@
 
 输出条目结构：
 
-- 输入仍保持 `NewsItem`
-- 后续分析结果可以附带分数、分组或统计字段，但当前不强制实现
+- 排序结果当前输出 `RankedNews`
+- 聚合结果当前输出 `SourceSummary`
+- 排序结果保留原始 `NewsItem` 与计算分数
 
 统计字段：
 
-- 当前不引入统计字段
-- 统计字段进入契约之前，不把它们视为 analyze 的完成条件
+- 当前先固化来源聚合统计
+- `SourceSummary` 至少包含 `source_id`、`item_count`、`best_rank`
 
 排序稳定性要求：
 
@@ -66,8 +69,8 @@
 
 同分时的决策规则：
 
-- 当前没有同分规则，因为输出只是分数，不做更高阶排序
-- 后续如果引入综合排序，再在此处补同分处理
+- 当前排序先按 `score` 降序，再按 `rank` 升序，最后按 `title` 升序
+- 后续如果引入综合排序，再在此处补更高阶同分处理
 
 ## 错误与边界
 
@@ -89,11 +92,13 @@
 fixture：
 
 - [fixtures/system/analyze/news-ranking-input.json](../../fixtures/system/analyze/news-ranking-input.json)
+- [fixtures/system/analyze/source-groups-input.json](../../fixtures/system/analyze/source-groups-input.json)
 
 测试：
 
 - `cargo test -p trendradar-analyze`
-- 读取 fixture 后，按 `rank` 升序检查 `score_news` 结果是否为 `100, 89, 1`
+- 读取排序 fixture 后，检查 `score_news` 结果是否为 `100, 89, 1`
+- 读取聚合 fixture 后，检查来源计数与最佳排名是否稳定
 
 快照：
 

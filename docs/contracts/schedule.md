@@ -8,6 +8,8 @@
 
 - `ScheduleDecision`
 - `AppConfig.schedule`
+- `decision_from_schedule`
+- `decision_from_config`
 
 ## 需要固化的契约
 
@@ -86,13 +88,15 @@ fixture：
 
 测试：
 
+- `cargo test -p trendradar-schedule`
 - `cargo test -p trendradar-config`
 - `cargo test --workspace`
 
 快照：
 
 - 当前不需要
-- Wave 1 真正实现调度逻辑后再考虑固定输出快照
+- 当前布尔阶段开关已由 fixture 驱动测试覆盖
+- 后续如果进入时间窗口表达，再考虑固定输出快照
 
 ## 开放问题
 
