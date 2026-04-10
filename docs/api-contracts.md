@@ -136,3 +136,16 @@
 - 每新增一个对外可观察行为，就判断是否应写入本文件
 - 如果某项行为已经由 fixture 和测试完全覆盖，也仍应在这里保留简明入口
 - 本文件不追求一次写全，而是随着迁移推进逐步固化
+
+## 模块级契约入口
+
+进入实现阶段后，具体字段和行为边界应继续下沉到模块级契约文档：
+
+- [contracts/README.md](./contracts/README.md)
+- [contracts/domain.md](./contracts/domain.md)
+- [contracts/config.md](./contracts/config.md)
+- [contracts/schedule.md](./contracts/schedule.md)
+- [contracts/analyze.md](./contracts/analyze.md)
+- [contracts/fetch.md](./contracts/fetch.md)
+- [contracts/storage.md](./contracts/storage.md)
+- [contracts/report.md](./contracts/report.md)

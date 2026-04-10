@@ -19,6 +19,14 @@
 
 如果后续实现与这些文档冲突，应优先更新设计文档，再调整迁移任务范围。
 
+## 执行层文档入口
+
+进入具体实现时，除了本总方案，还应配合下面三类执行层文档：
+
+- [contracts/README.md](./contracts/README.md)
+- [implementation/README.md](./implementation/README.md)
+- [acceptance-matrix.md](./acceptance-matrix.md)
+
 ## 当前判断
 
 结合仓库现状，当前已经具备进入并行迁移的基础，但只具备“最小起跑线”：
