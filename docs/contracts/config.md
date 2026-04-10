@@ -19,6 +19,7 @@
 
 - `timezone: String`
 - `platforms: Vec<String>`
+- `schedule: ScheduleConfig`
 
 必填字段：
 
@@ -28,29 +29,38 @@
 
 - `timezone` 默认值为 `Asia/Shanghai`
 - `platforms` 默认值为空数组
+- `schedule.collect / analyze / push` 默认值均为 `true`
 
 可延后字段：
 
 - RSS 订阅列表
-- 调度配置
 - 输出目标与输出开关
 - 存储配置
 
 ### 2. 调度配置
 
-当前状态：
+当前字段：
 
-- 调度字段尚未进入 `AppConfig`
-- Wave 0 只在契约层预留，不在本轮实现中扩字段
+- `schedule.collect: bool`
+- `schedule.analyze: bool`
+- `schedule.push: bool`
 
-预留字段方向：
+当前语义：
+
+- `collect` 表示是否允许进入抓取阶段
+- `analyze` 表示是否允许进入分析阶段
+- `push` 表示是否允许进入推送阶段
+
+当前保留边界：
 
 - 时区相关调度窗口
-- 是否执行抓取 / 分析 / 推送的阶段开关
+- 工作日 / 小时段 / 冷却周期等复杂调度表达
+- 这些规则进入前，不影响当前布尔阶段开关落地
 
 非法配置的错误语义：
 
-- 一旦调度字段落地，必须继续复用 `TrendRadarError::InvalidConfig`
+- 当前调度字段是布尔值，不引入额外校验错误
+- 后续扩展复杂调度配置时，必须继续复用 `TrendRadarError::InvalidConfig`
 - 错误消息需要包含具体字段名和触发条件
 
 ### 3. 数据源配置

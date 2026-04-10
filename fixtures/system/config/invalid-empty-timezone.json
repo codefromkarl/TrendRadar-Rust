@@ -1,4 +1,9 @@
 {
   "timezone": "",
-  "platforms": ["weibo"]
+  "platforms": ["weibo"],
+  "schedule": {
+    "collect": true,
+    "analyze": true,
+    "push": true
+  }
 }
