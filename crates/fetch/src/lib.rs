@@ -170,4 +170,34 @@ mod tests {
         assert_eq!(items[1].rank, 2);
         Ok(())
     }
+
+    #[test]
+    fn rss_fetcher_reports_parse_fixture_error() -> Result<(), Box<dyn Error>> {
+        let fixture_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/system/fetch/invalid-rss.json"
+        );
+        let fetcher = FixtureRssFetcher::new("broken-rss", fixture_path);
+
+        let error = fetcher.fetch().expect_err("fixture should fail to parse");
+
+        let message = error.to_string();
+        assert!(message.contains("failed to parse fetch fixture"));
+        assert!(message.contains("invalid-rss.json"));
+        Ok(())
+    }
+
+    #[test]
+    fn rss_fetcher_returns_empty_items_for_empty_fixture() -> Result<(), Box<dyn Error>> {
+        let fixture_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/system/fetch/empty-rss.json"
+        );
+        let fetcher = FixtureRssFetcher::new("empty-rss", fixture_path);
+
+        let items = fetcher.fetch()?;
+
+        assert!(items.is_empty());
+        Ok(())
+    }
 }

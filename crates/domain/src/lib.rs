@@ -54,3 +54,65 @@ pub struct RunContext {
     /// 时区名称。
     pub timezone: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{NewsItem, RssItem, RunContext};
+    use chrono::TimeZone;
+    use std::error::Error;
+    use std::fs::read_to_string;
+
+    fn domain_fixture_path(name: &str) -> String {
+        format!(
+            "{}/../../fixtures/system/domain/{name}",
+            env!("CARGO_MANIFEST_DIR")
+        )
+    }
+
+    #[test]
+    fn news_item_serializes_with_stable_field_names() -> Result<(), Box<dyn Error>> {
+        let fixture = read_to_string(domain_fixture_path("news-item.json"))?;
+        let item: NewsItem = serde_json::from_str(&fixture)?;
+
+        assert_eq!(
+            item,
+            NewsItem {
+                title: "Rust 1.85.0 released".to_owned(),
+                source_id: "github-trending".to_owned(),
+                rank: 1,
+            }
+        );
+        assert_eq!(serde_json::to_string_pretty(&item)?, fixture.trim_end());
+        Ok(())
+    }
+
+    #[test]
+    fn rss_item_roundtrips_fixture_json() -> Result<(), Box<dyn Error>> {
+        let fixture = read_to_string(domain_fixture_path("rss-item.json"))?;
+        let item: RssItem = serde_json::from_str(&fixture)?;
+
+        assert_eq!(item.feed_id, "rust-blog");
+        assert_eq!(item.url, "https://blog.rust-lang.org/async-patterns");
+        assert_eq!(serde_json::to_string_pretty(&item)?, fixture.trim_end());
+        Ok(())
+    }
+
+    #[test]
+    fn run_context_uses_rfc3339_utc_timestamp() -> Result<(), Box<dyn Error>> {
+        let fixture = read_to_string(domain_fixture_path("run-context.json"))?;
+        let context: RunContext = serde_json::from_str(&fixture)?;
+
+        assert_eq!(
+            context,
+            RunContext {
+                started_at: chrono::Utc
+                    .with_ymd_and_hms(2026, 4, 11, 9, 30, 0)
+                    .single()
+                    .ok_or("invalid fixed timestamp")?,
+                timezone: "Asia/Shanghai".to_owned(),
+            }
+        );
+        assert_eq!(serde_json::to_string_pretty(&context)?, fixture.trim_end());
+        Ok(())
+    }
+}

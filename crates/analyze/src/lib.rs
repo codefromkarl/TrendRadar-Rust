@@ -27,7 +27,8 @@ pub struct SourceSummary {
 /// 计算新闻的基础权重。
 #[must_use]
 pub fn score_news(item: &NewsItem) -> u32 {
-    101_u32.saturating_sub(item.rank.min(100))
+    let effective_rank = item.rank.clamp(1, 100);
+    101_u32.saturating_sub(effective_rank)
 }
 
 /// 按分数对新闻排序。
@@ -162,6 +163,50 @@ mod tests {
         assert_eq!(groups[1].source_id, "community-hotlist");
         assert_eq!(groups[1].item_count, 1);
         assert_eq!(groups[1].best_rank, 12);
+        Ok(())
+    }
+
+    #[test]
+    fn zero_rank_is_clamped_to_top_score() -> Result<(), Box<dyn Error>> {
+        let fixture_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/system/analyze/zero-rank-input.json"
+        );
+        let contents = read_to_string(fixture_path)?;
+        let items: Vec<NewsItem> = serde_json::from_str(&contents)?;
+
+        let scores: Vec<u32> = items.iter().map(score_news).collect();
+        let ranked = rank_news(&items);
+
+        assert_eq!(scores, vec![100, 100]);
+        assert_eq!(ranked[0].score, 100);
+        assert_eq!(ranked[1].score, 100);
+        Ok(())
+    }
+
+    #[test]
+    fn rank_news_uses_title_as_final_tiebreaker() -> Result<(), Box<dyn Error>> {
+        let fixture_path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../fixtures/system/analyze/same-rank-input.json"
+        );
+        let contents = read_to_string(fixture_path)?;
+        let items: Vec<NewsItem> = serde_json::from_str(&contents)?;
+
+        let ranked = rank_news(&items);
+        let ranked_titles: Vec<&str> = ranked
+            .iter()
+            .map(|entry| entry.item.title.as_str())
+            .collect();
+
+        assert_eq!(
+            ranked_titles,
+            vec![
+                "Alpha release note",
+                "Beta release note",
+                "Zeta release note"
+            ]
+        );
         Ok(())
     }
 }

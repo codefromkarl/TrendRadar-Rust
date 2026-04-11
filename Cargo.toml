@@ -39,6 +39,7 @@ categories = ["command-line-utilities", "development-tools"]
 [workspace.dependencies]
 anyhow = "1.0"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+chrono-tz = "0.10"
 insta = { version = "1.43", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -51,6 +52,7 @@ insta.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 trendradar-analyze = { path = "crates/analyze" }
+trendradar-app = { path = "crates/app" }
 trendradar-config = { path = "crates/config" }
 trendradar-domain = { path = "crates/domain" }
 trendradar-fetch = { path = "crates/fetch" }

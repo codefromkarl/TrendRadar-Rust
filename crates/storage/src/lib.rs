@@ -143,4 +143,14 @@ mod tests {
         assert_eq!(stored[0].rank, 2);
         Ok(())
     }
+
+    #[test]
+    fn sqlite_repository_starts_empty() -> Result<(), Box<dyn Error>> {
+        let repository = SqliteNewsRepository::in_memory()?;
+
+        let stored = repository.list_news()?;
+
+        assert!(stored.is_empty());
+        Ok(())
+    }
 }

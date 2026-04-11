@@ -62,4 +62,23 @@ mod tests {
         assert_eq!(value["items"][1]["rank"], 12);
         Ok(())
     }
+
+    #[test]
+    fn render_news_json_keeps_empty_items_shape() -> Result<(), Box<dyn Error>> {
+        let context = RunContext {
+            started_at: chrono::Utc
+                .with_ymd_and_hms(2026, 4, 11, 10, 0, 0)
+                .single()
+                .ok_or("invalid fixed timestamp")?,
+            timezone: "Asia/Shanghai".to_owned(),
+        };
+
+        let rendered = render_news_json(&[], &context)?;
+        let value: serde_json::Value = serde_json::from_str(&rendered)?;
+
+        assert_eq!(value["meta"]["timezone"], "Asia/Shanghai");
+        assert_eq!(value["meta"]["item_count"], 0);
+        assert_eq!(value["items"], serde_json::json!([]));
+        Ok(())
+    }
 }

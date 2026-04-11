@@ -1,7 +1,7 @@
 //! 调度解析骨架。
 
 use serde::{Deserialize, Serialize};
-use trendradar_config::{AppConfig, ScheduleConfig};
+use trendradar_config::{AppConfig, ScheduleConfig, ScheduleWindowConfig};
 
 /// 调度决策。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -24,6 +24,13 @@ impl Default for ScheduleDecision {
     }
 }
 
+/// 调度上下文。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScheduleContext {
+    /// 已按配置时区折算后的本地小时，范围 0-23。
+    pub local_hour: u8,
+}
+
 /// 从调度配置生成决策。
 #[must_use]
 pub fn decision_from_schedule(schedule: &ScheduleConfig) -> ScheduleDecision {
@@ -34,18 +41,61 @@ pub fn decision_from_schedule(schedule: &ScheduleConfig) -> ScheduleDecision {
     }
 }
 
+fn window_matches_hour(window: &ScheduleWindowConfig, local_hour: u8) -> bool {
+    if local_hour > 23 {
+        return false;
+    }
+
+    if window.start_hour < window.end_hour {
+        (window.start_hour..window.end_hour).contains(&local_hour)
+    } else {
+        local_hour >= window.start_hour || local_hour < window.end_hour
+    }
+}
+
+/// 从调度配置和显式上下文生成决策。
+#[must_use]
+pub fn decision_from_schedule_at(
+    schedule: &ScheduleConfig,
+    context: ScheduleContext,
+) -> ScheduleDecision {
+    let base = decision_from_schedule(schedule);
+
+    match &schedule.window {
+        Some(window) if !window_matches_hour(window, context.local_hour) => ScheduleDecision {
+            collect: false,
+            analyze: false,
+            push: false,
+        },
+        _ => base,
+    }
+}
+
 /// 从应用配置生成调度决策。
 #[must_use]
 pub fn decision_from_config(config: &AppConfig) -> ScheduleDecision {
     decision_from_schedule(&config.schedule)
 }
 
+/// 从应用配置和显式上下文生成调度决策。
+#[must_use]
+pub fn decision_from_config_at(config: &AppConfig, context: ScheduleContext) -> ScheduleDecision {
+    decision_from_schedule_at(&config.schedule, context)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{ScheduleDecision, decision_from_config};
+    use super::{ScheduleContext, ScheduleDecision, decision_from_config, decision_from_config_at};
     use std::error::Error;
     use std::fs::read_to_string;
     use trendradar_config::{AppConfig, ScheduleConfig, load_config_from_json_str};
+
+    fn schedule_fixture_path(name: &str) -> String {
+        format!(
+            "{}/../../fixtures/system/schedule/{name}",
+            env!("CARGO_MANIFEST_DIR")
+        )
+    }
 
     #[test]
     fn decision_follows_explicit_schedule_flags() {
@@ -56,6 +106,7 @@ mod tests {
                 collect: false,
                 analyze: true,
                 push: false,
+                window: None,
             },
         };
 
@@ -79,6 +130,54 @@ mod tests {
         let config = load_config_from_json_str(&fixture)?;
 
         assert_eq!(decision_from_config(&config), ScheduleDecision::default());
+        Ok(())
+    }
+
+    #[test]
+    fn decision_respects_daytime_window() -> Result<(), Box<dyn Error>> {
+        let fixture = read_to_string(schedule_fixture_path("window-daytime.json"))?;
+        let config = load_config_from_json_str(&fixture)?;
+
+        assert_eq!(
+            decision_from_config_at(&config, ScheduleContext { local_hour: 10 }),
+            ScheduleDecision {
+                collect: true,
+                analyze: true,
+                push: true,
+            }
+        );
+        assert_eq!(
+            decision_from_config_at(&config, ScheduleContext { local_hour: 20 }),
+            ScheduleDecision {
+                collect: false,
+                analyze: false,
+                push: false,
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn decision_supports_overnight_window() -> Result<(), Box<dyn Error>> {
+        let fixture = read_to_string(schedule_fixture_path("window-overnight.json"))?;
+        let config = load_config_from_json_str(&fixture)?;
+
+        assert_eq!(
+            decision_from_config_at(&config, ScheduleContext { local_hour: 23 }),
+            ScheduleDecision {
+                collect: true,
+                analyze: false,
+                push: true,
+            }
+        );
+        assert_eq!(
+            decision_from_config_at(&config, ScheduleContext { local_hour: 12 }),
+            ScheduleDecision {
+                collect: false,
+                analyze: false,
+                push: false,
+            }
+        );
         Ok(())
     }
 }

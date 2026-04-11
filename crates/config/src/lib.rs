@@ -1,8 +1,18 @@
 //! 配置模型与加载入口。
 
+use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 use trendradar_domain::{Result, TrendRadarError};
+
+/// 调度配置。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScheduleWindowConfig {
+    /// 本地时区窗口起始小时，范围 0-23。
+    pub start_hour: u8,
+    /// 本地时区窗口结束小时，范围 0-23。
+    pub end_hour: u8,
+}
 
 /// 调度配置。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -13,6 +23,9 @@ pub struct ScheduleConfig {
     pub analyze: bool,
     /// 是否执行推送阶段。
     pub push: bool,
+    /// 可选的本地时区小时窗口。
+    #[serde(default)]
+    pub window: Option<ScheduleWindowConfig>,
 }
 
 impl Default for ScheduleConfig {
@@ -21,6 +34,7 @@ impl Default for ScheduleConfig {
             collect: true,
             analyze: true,
             push: true,
+            window: None,
         }
     }
 }
@@ -55,6 +69,27 @@ pub fn validate_config(config: AppConfig) -> Result<AppConfig> {
         });
     }
 
+    config
+        .timezone
+        .parse::<Tz>()
+        .map_err(|_| TrendRadarError::InvalidConfig {
+            message: "timezone must be a valid IANA timezone".to_owned(),
+        })?;
+
+    if let Some(window) = &config.schedule.window {
+        if window.start_hour > 23 || window.end_hour > 23 {
+            return Err(TrendRadarError::InvalidConfig {
+                message: "schedule window hours must be between 0 and 23".to_owned(),
+            });
+        }
+
+        if window.start_hour == window.end_hour {
+            return Err(TrendRadarError::InvalidConfig {
+                message: "schedule window start_hour and end_hour must not be equal".to_owned(),
+            });
+        }
+    }
+
     Ok(config)
 }
 
@@ -74,8 +109,23 @@ pub fn load_default_config() -> Result<AppConfig> {
 
 #[cfg(test)]
 mod tests {
-    use super::{AppConfig, ScheduleConfig, load_config_from_json_str};
+    use super::{AppConfig, ScheduleConfig, ScheduleWindowConfig, load_config_from_json_str};
     use std::error::Error;
+    use std::fs::read_to_string;
+
+    fn schedule_fixture_path(name: &str) -> String {
+        format!(
+            "{}/../../fixtures/system/schedule/{name}",
+            env!("CARGO_MANIFEST_DIR")
+        )
+    }
+
+    fn config_fixture_path(name: &str) -> String {
+        format!(
+            "{}/../../fixtures/system/config/{name}",
+            env!("CARGO_MANIFEST_DIR")
+        )
+    }
 
     #[test]
     fn missing_schedule_uses_default_values() -> Result<(), Box<dyn Error>> {
@@ -104,8 +154,60 @@ mod tests {
                     collect: true,
                     analyze: true,
                     push: false,
+                    window: None,
                 },
             }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn schedule_window_is_loaded_from_fixture() -> Result<(), Box<dyn Error>> {
+        let fixture = read_to_string(schedule_fixture_path("window-daytime.json"))?;
+        let config = load_config_from_json_str(&fixture)?;
+
+        assert_eq!(
+            config.schedule.window,
+            Some(ScheduleWindowConfig {
+                start_hour: 9,
+                end_hour: 18,
+            })
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn schedule_window_with_equal_hours_is_rejected() -> Result<(), Box<dyn Error>> {
+        let fixture = read_to_string(schedule_fixture_path("invalid-window-equal-hours.json"))?;
+        let error = load_config_from_json_str(&fixture).expect_err("fixture should be rejected");
+
+        assert_eq!(
+            error.to_string(),
+            "invalid config: schedule window start_hour and end_hour must not be equal"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn schedule_window_with_out_of_range_hour_is_rejected() -> Result<(), Box<dyn Error>> {
+        let fixture = read_to_string(schedule_fixture_path("invalid-window-out-of-range.json"))?;
+        let error = load_config_from_json_str(&fixture).expect_err("fixture should be rejected");
+
+        assert_eq!(
+            error.to_string(),
+            "invalid config: schedule window hours must be between 0 and 23"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn unknown_timezone_is_rejected() -> Result<(), Box<dyn Error>> {
+        let fixture = read_to_string(config_fixture_path("invalid-unknown-timezone-window.json"))?;
+        let error = load_config_from_json_str(&fixture).expect_err("fixture should be rejected");
+
+        assert_eq!(
+            error.to_string(),
+            "invalid config: timezone must be a valid IANA timezone"
         );
         Ok(())
     }
