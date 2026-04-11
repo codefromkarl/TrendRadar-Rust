@@ -3,7 +3,7 @@
 ## 目标
 
 在各核心模块最小闭环完成后，负责薄编排和系统性测试挂载。
-当前已实现一条基于 fixture 的最小闭环：`config -> fetch -> analyze -> storage -> report`。
+当前已实现两条 pipeline 路径：基于 fixture 的最小闭环和基于 config 驱动的 HTTP pipeline。
 
 ## 前置依赖
 
@@ -18,7 +18,7 @@
 
 - 输入：各模块公开接口
 - 输出：最小 pipeline、系统 fixture、编排入口
-- 当前入口：`run_fixture_pipeline`
+- 当前入口：`run_fixture_pipeline`（fixture 路径）、`run_config_pipeline`（HTTP 路径）、`trendradar` binary
 
 ## 本轮范围
 
@@ -64,6 +64,10 @@
 - 已补跨午夜窗口外阻断的完整 pipeline 系统测试，验证 overnight 窗口在 `app` 层同样具备“窗口内允许 / 窗口外禁止”的对称行为
 - 已补窗口外阻断样例，验证 `app` 会在存在 `schedule.window` 时按 `started_at + timezone` 计算本地小时并阻断全链路
 - `app` 继续只承担编排与系统测试挂载
+- 已提取 `run_pipeline_with_fetchers` 作为 fixture 和 HTTP pipeline 共享的核心编排逻辑
+- 已实现 `run_config_pipeline`，从 `AppConfig` 的 `rss_feeds` 和 `hotlist_apis` 构建 HTTP fetcher 并运行全链路
+- 已添加 `trendradar` binary 入口（`src/main.rs`），支持从配置文件运行 HTTP pipeline
+- 已补 3 条 mockito 隔离的 HTTP pipeline 集成测试（正常抓取、空来源、HTTP 错误传播）
 
 ## 验证命令
 

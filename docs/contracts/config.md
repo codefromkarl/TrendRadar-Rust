@@ -18,8 +18,10 @@
 当前顶层字段：
 
 - `timezone: String`
-- `platforms: Vec<String>`
+- `platforms: Vec<String>`（fixture 模式）
 - `schedule: ScheduleConfig`
+- `rss_feeds: Vec<RssFeedConfig>`（HTTP 模式）
+- `hotlist_apis: Vec<HotlistApiConfig>`（HTTP 模式）
 
 必填字段：
 
@@ -31,10 +33,10 @@
 - `platforms` 默认值为空数组
 - `schedule.collect / analyze / push` 默认值均为 `true`
 - `schedule.window` 默认值为 `null`
+- `rss_feeds` 和 `hotlist_apis` 默认值为空数组
 
 可延后字段：
 
-- RSS 订阅列表
 - 输出目标与输出开关
 - 存储配置
 
@@ -75,8 +77,15 @@
 
 RSS 订阅列表：
 
-- 当前尚未进入实现
-- Wave 0 只在契约中确认它属于 `config` 负责范围
+- `rss_feeds` 包含 `RssFeedConfig { source_id, url }` 结构体数组
+- 每个 RSS 订阅源需要 `source_id`（标识）和 `url`（feed 地址）
+- 空数组不视为非法配置
+
+热榜 API 列表：
+
+- `hotlist_apis` 包含 `HotlistApiConfig { platform_id, url }` 结构体数组
+- 每个热榜源需要 `platform_id`（平台标识）和 `url`（API 地址）
+- 空数组不视为非法配置
 
 输出开关与输出目标：
 
@@ -121,6 +130,7 @@ fixture：
 - [fixtures/system/config/minimal-valid.json](../../fixtures/system/config/minimal-valid.json)
 - [fixtures/system/config/invalid-empty-timezone.json](../../fixtures/system/config/invalid-empty-timezone.json)
 - [fixtures/system/config/invalid-unknown-timezone-window.json](../../fixtures/system/config/invalid-unknown-timezone-window.json)
+- [fixtures/system/config/minimal-valid-http.json](../../fixtures/system/config/minimal-valid-http.json)
 
 测试：
 
