@@ -1,4 +1,4 @@
-//! 应用编排层骨架。
+//! 应用编排层：fixture 与 HTTP pipeline 共享调度/分析/存储/报告逻辑。
 
 use std::path::PathBuf;
 
@@ -6,7 +6,9 @@ use chrono::{DateTime, Timelike, Utc};
 use trendradar_analyze::{RankedNews, SourceSummary, group_news_by_source, rank_news};
 use trendradar_config::{AppConfig, load_default_config, validate_config};
 use trendradar_domain::{NewsItem, RunContext};
-use trendradar_fetch::{Fetcher, FixtureHotlistFetcher, FixtureRssFetcher};
+use trendradar_fetch::{
+    Fetcher, FixtureHotlistFetcher, FixtureRssFetcher, HttpHotlistFetcher, HttpRssFetcher,
+};
 use trendradar_report::render_news_json;
 use trendradar_schedule::{
     ScheduleContext, ScheduleDecision, decision_from_config, decision_from_config_at,
@@ -31,6 +33,10 @@ pub fn bootstrap_with_config(config: &AppConfig) -> anyhow::Result<()> {
     let _ = validate_config(config.clone())?;
     Ok(())
 }
+
+// ---------------------------------------------------------------------------
+// Source definitions
+// ---------------------------------------------------------------------------
 
 /// Fixture 数据源类型。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,6 +80,10 @@ impl FixtureSource {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Pipeline result
+// ---------------------------------------------------------------------------
+
 /// 最小 pipeline 的聚合输出。
 #[derive(Debug)]
 pub struct PipelineResult {
@@ -91,39 +101,27 @@ pub struct PipelineResult {
     pub report_json: Option<String>,
 }
 
-/// 运行最小 fixture pipeline。
-pub fn run_fixture_pipeline(
+// ---------------------------------------------------------------------------
+// Core pipeline logic (shared by fixture and HTTP paths)
+// ---------------------------------------------------------------------------
+
+/// 从配置和 fetcher 列表运行 pipeline。
+///
+/// 这是所有 pipeline 变体的共享核心，负责调度决策、分析、存储和报告。
+/// 调用方负责构建 fetcher 列表。
+fn run_pipeline_with_fetchers(
     config: &AppConfig,
     started_at: DateTime<Utc>,
-    sources: &[FixtureSource],
+    fetchers: &[Box<dyn Fetcher>],
 ) -> anyhow::Result<PipelineResult> {
     bootstrap_with_config(config)?;
 
-    let decision = match config.schedule.window {
-        Some(_) => {
-            let timezone: chrono_tz::Tz = config
-                .timezone
-                .parse()
-                .map_err(|_| anyhow::anyhow!("invalid timezone in config: {}", config.timezone))?;
-            let local_hour = started_at.with_timezone(&timezone).hour() as u8;
-            decision_from_config_at(config, ScheduleContext { local_hour })
-        }
-        None => decision_from_config(config),
-    };
-    let mut collected_items = Vec::new();
+    let decision = compute_decision(config, started_at)?;
 
+    let mut collected_items = Vec::new();
     if decision.collect {
-        for source in sources {
-            let items = match source.kind {
-                FixtureSourceKind::Hotlist => {
-                    FixtureHotlistFetcher::new(source.source_id.clone(), &source.fixture_path)
-                        .fetch()?
-                }
-                FixtureSourceKind::Rss => {
-                    FixtureRssFetcher::new(source.source_id.clone(), &source.fixture_path)
-                        .fetch()?
-                }
-            };
+        for fetcher in fetchers {
+            let items = fetcher.fetch()?;
             collected_items.extend(items);
         }
     }
@@ -163,4 +161,82 @@ pub fn run_fixture_pipeline(
         stored_items,
         report_json,
     })
+}
+
+/// 根据配置计算调度决策。
+fn compute_decision(
+    config: &AppConfig,
+    started_at: DateTime<Utc>,
+) -> anyhow::Result<ScheduleDecision> {
+    match config.schedule.window {
+        Some(_) => {
+            let timezone: chrono_tz::Tz = config
+                .timezone
+                .parse()
+                .map_err(|_| anyhow::anyhow!("invalid timezone in config: {}", config.timezone))?;
+            let local_hour = started_at.with_timezone(&timezone).hour() as u8;
+            Ok(decision_from_config_at(
+                config,
+                ScheduleContext { local_hour },
+            ))
+        }
+        None => Ok(decision_from_config(config)),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Fixture pipeline (existing)
+// ---------------------------------------------------------------------------
+
+/// 运行最小 fixture pipeline。
+pub fn run_fixture_pipeline(
+    config: &AppConfig,
+    started_at: DateTime<Utc>,
+    sources: &[FixtureSource],
+) -> anyhow::Result<PipelineResult> {
+    let fetchers: Vec<Box<dyn Fetcher>> = sources
+        .iter()
+        .map(|source| -> Box<dyn Fetcher> {
+            match source.kind {
+                FixtureSourceKind::Hotlist => Box::new(FixtureHotlistFetcher::new(
+                    source.source_id.clone(),
+                    &source.fixture_path,
+                )),
+                FixtureSourceKind::Rss => Box::new(FixtureRssFetcher::new(
+                    source.source_id.clone(),
+                    &source.fixture_path,
+                )),
+            }
+        })
+        .collect();
+
+    run_pipeline_with_fetchers(config, started_at, &fetchers)
+}
+
+// ---------------------------------------------------------------------------
+// Config-driven HTTP pipeline (new)
+// ---------------------------------------------------------------------------
+
+/// 运行配置驱动的 HTTP pipeline。
+///
+/// 从 `AppConfig` 的 `rss_feeds` 和 `hotlist_apis` 字段构建 HTTP fetcher，
+/// 自动完成调度→抓取→分析→存储→报告流程。
+pub fn run_config_pipeline(
+    config: &AppConfig,
+    started_at: DateTime<Utc>,
+) -> anyhow::Result<PipelineResult> {
+    let mut fetchers: Vec<Box<dyn Fetcher>> = Vec::new();
+
+    for feed in &config.rss_feeds {
+        fetchers.push(Box::new(HttpRssFetcher::new(&feed.source_id, &feed.url)));
+    }
+
+    for api in &config.hotlist_apis {
+        fetchers.push(Box::new(HttpHotlistFetcher::new(
+            &api.platform_id,
+            &api.url,
+        )));
+    }
+
+    run_pipeline_with_fetchers(config, started_at, &fetchers)
 }
