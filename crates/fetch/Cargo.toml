@@ -12,11 +12,16 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+reqwest.workspace = true
+rss.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 trendradar-config = { path = "../config" }
 trendradar-domain = { path = "../domain" }
+
+[dev-dependencies]
+mockito.workspace = true
 
 [lints]
 workspace = true
