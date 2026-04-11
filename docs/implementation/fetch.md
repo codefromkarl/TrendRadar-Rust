@@ -41,6 +41,8 @@
 
 - 已通过 `FixtureRssFetcher` 打通一个 RSS 源到 `NewsItem`
 - 已通过 `FixtureHotlistFetcher` 打通一个热榜源到 `NewsItem`
+- 已补非法 RSS fixture 的解析失败断言
+- 已补合法空 RSS fixture 的空集合断言
 - 真实网络抓取、重试与限流仍留待后续阶段
 
 ## 验证命令

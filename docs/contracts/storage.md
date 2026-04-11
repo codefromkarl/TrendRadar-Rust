@@ -53,6 +53,8 @@
   `fixtures/system/storage/news-roundtrip-input.json`
 - 测试：
   `cargo test -p trendradar-storage`
+- 空仓库边界：
+  新建仓库时检查 `list_news()` 返回空集合
 - 快照：
   当前不需要，行为由结构断言覆盖
 

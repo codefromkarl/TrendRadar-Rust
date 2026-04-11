@@ -61,12 +61,12 @@ flowchart LR
   F --> G[Report]
 ```
 
-当前已经落地并验证的是最小链路 `config -> app::bootstrap`。抓取、分析、存储和输出等能力仍按迁移计划逐步进入 Rust 内核，而不是一次性重写整套旧系统。
+当前已经落地并验证的是两条链路：`config -> app::bootstrap` 的基础启动校验，以及基于 fixture 的 `config -> fetch -> analyze -> storage -> report` 最小闭环。与此同时，Wave 3 已开始围绕 `domain`、`schedule`、`analyze`、`fetch`、`storage`、`report`、`app` 补边界样例与系统 fixture，使核心 crate 的行为不只“能跑通”，也“可复查”。更复杂的抓取策略、持久化形态和报告能力仍按迁移计划逐步进入 Rust 内核，而不是一次性重写整套旧系统。
 
 ## 当前状态
 
-- 当前阶段：环境准备和迁移基线收敛
-- 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 最小系统测试链路
+- 当前阶段：迁移基线收敛，已进入 Wave 3 边界样例扩展
+- 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 启动链路、`config -> fetch -> analyze -> storage -> report` fixture 系统链路、多个 crate 级边界样例，以及根级 `tests/system/` 下 62 条成功路径 / 空输入 / 错误路径 / 阶段组合样例
 - 已建立内容：CI 基础验证、系统测试模板、Git hooks、提交模板、并行迁移规则
 - 当前不包含：完整抓取链路、真实存储实现、完整报告层、通知渠道、AI / MCP 扩展能力
 

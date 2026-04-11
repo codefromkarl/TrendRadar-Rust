@@ -22,6 +22,7 @@
 ## 当前进展
 
 - 共享错误已覆盖 `InvalidConfig` 与 `Storage`
+- 已补 `NewsItem`、`RssItem`、`RunContext` 的 fixture roundtrip 测试
 - 其余抓取、解析、输出错误仍按后续模块实现节奏补充
 
 ## 暂不处理

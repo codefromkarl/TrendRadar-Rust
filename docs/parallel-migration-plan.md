@@ -171,6 +171,54 @@ Wave 1 应按“共享契约已稳定、内部逻辑可以独立推进”的标�
 - 系统输出可通过结构断言或快照稳定比较
 - 文档、fixture、crate 接口和系统测试之间没有明显冲突
 
+### Wave 2 当前结论（2026-04-11）
+
+- `crates/app/tests/wave2_pipeline.rs` 已把 `config -> fetch -> analyze -> storage -> report` 最小闭环跑通
+- `W2-parity-review` 已确认 `app` 当前只做配置校验、阶段决策串接、fixture 数据源编排、存储落库和报告调用
+- 排序、来源聚合、抓取解析、存储去重和 JSON 渲染仍分别留在 `analyze`、`fetch`、`storage`、`report`
+- 当前基线满足进入 Wave 3 的前置条件
+
+### Wave 3：边界内扩展
+
+Wave 3 不再验证“能不能串起来”，而是沿着既有 crate 边界扩能力和补证据。
+
+### 目标
+
+- 在不打破薄编排前提下扩展各核心 crate 的能力覆盖
+- 把最小闭环推进为可持续扩写的系统测试基线
+
+### 推荐工作包
+
+| 工作包 | 主责任 | 前置依赖 | 主要产出 |
+| --- | --- | --- | --- |
+| `W3-schedule-window-cases` | `schedule` | `W2-parity-review` | 更丰富的时间窗口与决策 fixture |
+| `W3-analyze-rule-cases` | `analyze` | `W2-parity-review` | 更高阶过滤、聚合、排序样例 |
+| `W3-adapter-expansion` | `fetch` / `storage` / `report` | `W2-parity-review` | 更多来源、持久化边界和输出断言 |
+| `W3-system-fixture-growth` | `app` / `tests` | 以上工作包逐步完成 | 新增系统 fixture，但 `app` 只增挂载与断言，不增业务规则 |
+
+### Wave 3 进入信号
+
+- `W2-parity-review` 已完成并留下审查记录
+- `cargo test -p trendradar-app` 通过
+- 验收矩阵已把 `app` 标记为具备最小 fixture pipeline 和系统测试入口
+
+### Wave 3 当前证据（2026-04-11）
+
+- `domain` 已补共享模型的 JSON fixture roundtrip 测试
+- `schedule` 已补白天窗口、跨午夜窗口的允许 / 禁止判定，以及相等小时非法窗口与越界小时非法窗口
+- `analyze` 已补 `rank = 0` 的评分边界、同排名排序、空输入和 `analyze=false` 门控
+- `fetch` 已补 RSS / 热榜两类来源的空输入与错误路径
+- `storage` 已补空仓库初始读取边界，并把去重语义提升到 `storage -> report` 系统测试
+- `report` 已补空输入时 `meta + items` 结构稳定性断言
+- `app` 已补最小正向全链路、空来源全链路、单来源全链路、RSS-only 全链路、hotlist-only 全链路、跨午夜窗口内放行 / 窗口外阻断全链路，以及 `collect=false` 时跳过损坏 source、窗口阻断时跳过损坏 source、`collect-only` 时仍传播损坏 source 错误、窗口放行时仍传播损坏 source 错误的路径和 `collect-only`、`analyze-only-empty`、`report-only-empty`、`push-only-empty`、`collect-and-report-no-analyze`、`analyze-without-report`、`disabled-all` 等系统 fixture；当前在存在 `schedule.window` 时也会按 `started_at + timezone` 消费时间窗口
+- 根级 `tests/system/` 当前已有 62 条 richer cases，已补同排名排序、零排名边界、空输入、`analyze=false` 门控、空 RSS、空热榜、非法 RSS、非法热榜、双来源同时为空、`fetch -> domain` 的部分抓取成功后整体中断语义、`fetch -> analyze` 的成功 / 空组合 / 混合来源 / 错误链路，以及真实抓取输出上的同 rank 排序稳定性、来源聚合在同计数时按 best-rank 排序、来源聚合在同计数不同时按 item_count 排序、部分抓取成功后的整体中断双向语义、空仓库到空报告、去重后进入报告、相同 rank 重复写入仍去重、同标题不同来源在相同 rank 下仍保留分离、乱序写入后稳定排序、同 rank 时按 `source_id + title` 稳定排序、非法时间窗口，以及 `app` 的空来源全链路、单来源全链路、RSS-only 全链路、hotlist-only 全链路、跨午夜窗口内放行 / 窗口外阻断全链路、`collect=false` 时跳过损坏 source 的路径、窗口阻断时跳过损坏 source 的路径、`collect-only` 时仍传播损坏 source 错误的路径、窗口放行时仍传播损坏 source 错误的路径、窗口内放行 / 窗口外阻断
+- 根级 `tests/system/app_pipeline_modes.rs` 已补最小正向全链路，并把 `collect/analyze/push` 的关键阶段矩阵收口到完整覆盖
+
+### Wave 3 当前判断
+
+- Wave 3 已不只是“可进入”，而是已经形成一批可重复验证的 crate 级 / 系统级边界样例
+- `app` 的薄编排边界已经有足够多的系统证据，当前更适合把 richer cases 继续扩到非 `app` 链路，而不是把新规则塞回 `app`
+
 ## 模块级并行清单
 
 下表给出当前仓库推荐的并行迁移任务单位。

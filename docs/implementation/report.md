@@ -41,6 +41,7 @@
 
 - 已输出 `meta + items` 顶层结构
 - 已包含 `started_at`、`timezone`、`item_count`
+- 已补空输入边界断言，固定 `item_count = 0` 与空数组结构
 - HTML 报告与错误渲染仍留待后续阶段
 
 ## 验证命令

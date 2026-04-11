@@ -223,19 +223,29 @@ cargo llvm-cov nextest --workspace --all-features
 
 ## 当前已落地样例
 
-当前仓库已经补了第一条真实样例：
+当前仓库已经不只一条真实样例，而是形成了几条可复用链路：
 - `crates/app/tests/config_to_bootstrap.rs`
+  先把 `fixture -> config -> app` 的最小入口跑通
 - `tests/system/fetch_to_domain.rs`
+  覆盖 `fetch -> domain` 的正常、空输入、错误路径与双来源同时为空
 - `tests/system/analyze_pipeline.rs`
+  覆盖 `config -> schedule -> analyze` 的允许门控、禁止门控、同排名排序、零排名边界与空输入
 - `tests/system/storage_to_report.rs`
-- fixture：`fixtures/system/config/minimal-valid.json`
-- fixture：`fixtures/system/config/invalid-empty-timezone.json`
-- 测试：`crates/app/tests/config_to_bootstrap.rs`
-
-这个样例的作用不是覆盖复杂业务，而是先把“fixture -> config -> app”这条最小跨 crate 链路跑通。
+  覆盖 `storage -> report` 的有数据、空数据、去重、来源主键和排序稳定性
+- `tests/system/app_pipeline_modes.rs`
+  覆盖 `app` 全链路的最小正向闭环、空来源闭环、单来源闭环、RSS-only 闭环、hotlist-only 闭环、跨午夜窗口内放行 / 窗口外阻断闭环、`collect=false` 时跳过损坏 source、窗口阻断时跳过损坏 source、`collect-only` 时仍传播损坏 source 错误、窗口放行时仍传播损坏 source 错误的路径、8 个 `collect/analyze/push` 布尔组合和上游解析错误透传
+- `tests/system/config_schedule_errors.rs`
+  覆盖配置 / 调度边界的默认值回退、成功窗口判定与错误路径
 
 ## 下一步建议
 
-- 先为 `config -> app::bootstrap` 补第一条系统性测试样例
-- 再为 `domain + analyze` 补固定输入输出样例
-- 后续逐步把 `fetch`、`storage`、`report` 接入同一套模板
+- 当前根级系统测试已经覆盖：
+  `fetch -> domain` 的正常、空输入、错误路径与双来源同时为空，
+  `config -> schedule` 的默认值回退、窗口成功 / 失败与错误路径，
+  `config -> schedule -> analyze` 的允许门控、禁止门控、tie-break、零排名和空输入，
+  `storage -> report` 的有数据、空数据、去重、来源主键和排序稳定性，
+  以及 `app` 全链路的最小正向闭环、空来源闭环、单来源闭环、RSS-only 闭环、hotlist-only 闭环、跨午夜窗口内放行 / 窗口外阻断闭环、`collect=false` 时跳过损坏 source、窗口阻断时跳过损坏 source、`collect-only` 时仍传播损坏 source 错误、窗口放行时仍传播损坏 source 错误的路径、8 个 `collect/analyze/push` 布尔组合和上游解析错误透传。
+- 继续补更多跨 crate richer cases，而不是只停留在 crate 内边界测试
+- `app` 的阶段门控、来源形态、动态窗口和错误传播矩阵已经比较完整，下一批 richer cases 更适合优先转向非 `app` 链路
+- 优先扩 `fetch -> analyze`、`storage -> report` 或后续新增链路中的系统级错误路径、空输入路径和结构快照
+- 在适合快照的链路上继续引入更明确的结构对比

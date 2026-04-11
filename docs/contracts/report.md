@@ -19,6 +19,7 @@
   当前直接输出 `NewsItem` 数组
 - 元数据字段：
   `started_at`、`timezone`、`item_count`
+- 空输入时仍保留 `meta + items` 结构，且 `items` 为 `[]`
 
 ### 2. 运行上下文
 
@@ -47,6 +48,7 @@
   `fixtures/system/report/news-report-input.json`
 - 测试：
   `cargo test -p trendradar-report`
+- 空输入时检查 `item_count = 0` 且 `items = []`
 - 快照：
   当前不需要，顶层结构由 JSON 字段断言固定
 

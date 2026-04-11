@@ -40,6 +40,7 @@
 
 - 已提供 `SqliteNewsRepository::in_memory()`
 - 已固定 `(source_id, title)` 去重并保留更优 `rank`
+- 已补空仓库边界断言，固定初始读取结果为空集合
 - 真实文件数据库路径与迁移框架仍留待后续阶段
 
 ## 验证命令

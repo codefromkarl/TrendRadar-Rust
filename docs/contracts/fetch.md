@@ -54,8 +54,13 @@
 - fixture：
   `fixtures/system/fetch/rss-rust-blog.json`
   `fixtures/system/fetch/hotlist-weibo.json`
+  `fixtures/system/fetch/empty-rss.json`
 - 测试：
   `cargo test -p trendradar-fetch`
+- 错误边界：
+  非法 fixture 解析失败时返回 `FetchError::ParseFixture`
+- 空输入边界：
+  合法空 RSS fixture 返回空集合
 - 快照：
   当前不需要，结构由测试断言固定
 

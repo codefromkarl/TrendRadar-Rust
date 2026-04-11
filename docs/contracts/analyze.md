@@ -64,8 +64,9 @@
 排名与热度权重：
 
 - 当前版本只看 `rank`
-- 公式为 `101 - min(rank, 100)`
+- 公式为 `101 - clamp(rank, 1, 100)`
 - 这意味着 `rank = 1` 得到 `100`，`rank = 100` 得到 `1`
+- `rank = 0` 当前按边界保护视为 `1` 处理，避免产生 `101` 分
 
 同分时的决策规则：
 
@@ -86,6 +87,7 @@
 
 - 当前没有外部排序规则输入
 - 后续若新增排序规则，必须在 fixture 中补非法输入样例
+- `rank = 0` 不报错，但评分阶段会钳制到顶分边界
 
 ## 验证方式
 
@@ -93,12 +95,16 @@ fixture：
 
 - [fixtures/system/analyze/news-ranking-input.json](../../fixtures/system/analyze/news-ranking-input.json)
 - [fixtures/system/analyze/source-groups-input.json](../../fixtures/system/analyze/source-groups-input.json)
+- [fixtures/system/analyze/zero-rank-input.json](../../fixtures/system/analyze/zero-rank-input.json)
+- [fixtures/system/analyze/same-rank-input.json](../../fixtures/system/analyze/same-rank-input.json)
 
 测试：
 
 - `cargo test -p trendradar-analyze`
 - 读取排序 fixture 后，检查 `score_news` 结果是否为 `100, 89, 1`
 - 读取聚合 fixture 后，检查来源计数与最佳排名是否稳定
+- 读取零排名 fixture 后，检查分数不会超过 `100`
+- 读取同排名 fixture 后，检查最终按 `title` 升序稳定排序
 
 快照：
 

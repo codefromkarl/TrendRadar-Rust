@@ -30,6 +30,7 @@
 - `timezone` 默认值为 `Asia/Shanghai`
 - `platforms` 默认值为空数组
 - `schedule.collect / analyze / push` 默认值均为 `true`
+- `schedule.window` 默认值为 `null`
 
 可延后字段：
 
@@ -44,6 +45,8 @@
 - `schedule.collect: bool`
 - `schedule.analyze: bool`
 - `schedule.push: bool`
+- `schedule.window.start_hour: u8`
+- `schedule.window.end_hour: u8`
 
 当前语义：
 
@@ -91,6 +94,8 @@ RSS 订阅列表：
 
 - `timezone` 为空时返回 `TrendRadarError::InvalidConfig`
 - 当前错误消息为 `timezone must not be empty`
+- 非法时区字符串返回 `TrendRadarError::InvalidConfig`
+- 当前错误消息为 `timezone must be a valid IANA timezone`
 
 错误消息要求：
 
@@ -115,6 +120,7 @@ fixture：
 
 - [fixtures/system/config/minimal-valid.json](../../fixtures/system/config/minimal-valid.json)
 - [fixtures/system/config/invalid-empty-timezone.json](../../fixtures/system/config/invalid-empty-timezone.json)
+- [fixtures/system/config/invalid-unknown-timezone-window.json](../../fixtures/system/config/invalid-unknown-timezone-window.json)
 
 测试：
 
@@ -130,3 +136,15 @@ fixture：
 
 - 顶层配置是否拆为模块化子结构体
 - 配置加载是否只保留 JSON，还是预留 TOML / YAML
+当前已进入的最小窗口表达：
+
+- `schedule.window` 为可选字段
+- `start_hour` / `end_hour` 代表本地时区小时窗口
+- 当前使用半开区间 `[start_hour, end_hour)` 语义
+- 当 `start_hour > end_hour` 时表示跨午夜窗口
+
+当前校验规则：
+
+- `start_hour` 与 `end_hour` 必须都在 `0..=23`
+- `start_hour` 与 `end_hour` 不能相等
+- 非法样例已覆盖相等小时与越界小时两类失败路径

@@ -10,6 +10,9 @@
 - `AppConfig.schedule`
 - `decision_from_schedule`
 - `decision_from_config`
+- `decision_from_schedule_at`
+- `decision_from_config_at`
+- `ScheduleContext`
 
 ## 需要固化的契约
 
@@ -20,11 +23,15 @@
 - `AppConfig.schedule.collect`
 - `AppConfig.schedule.analyze`
 - `AppConfig.schedule.push`
+- `AppConfig.schedule.window.start_hour`
+- `AppConfig.schedule.window.end_hour`
 
 当前时间窗口表达方式：
 
-- 首版尚未进入时间窗口表达
-- 当前仅支持布尔阶段开关
+- 在布尔阶段开关之外，新增可选 `schedule.window`
+- `ScheduleContext.local_hour` 表示已按配置时区折算后的本地小时
+- 当前窗口采用半开区间 `[start_hour, end_hour)` 语义
+- 当 `start_hour > end_hour` 时表示跨午夜窗口
 
 时区来源：
 
@@ -44,6 +51,7 @@
 - `collect` 为 `true` 时，允许抓取阶段执行
 - `analyze` 为 `true` 时，允许分析阶段执行
 - `push` 为 `true` 时，允许推送阶段执行
+- 若显式注入的本地小时不在窗口内，三个阶段均返回 `false`
 
 默认决策：
 
@@ -56,23 +64,25 @@
 
 - 是
 - 从 `AppConfig.schedule` 生成决策时，不应依赖外部状态
+- 当需要时间窗口时，只能依赖显式注入的 `ScheduleContext`
 
 是否允许读取外部系统时间：
 
-- 当前不允许
-- 当后续支持时间窗口时，也应通过显式注入时间上下文测试
+- 当前运行时仍不允许直接读取系统时间
+- 时间窗口测试与实现必须通过显式注入时间上下文完成
 
 如何注入测试时间：
 
-- 当前尚不需要
-- 后续若引入时间窗口，应通过参数或上下文对象注入固定时间
+- 当前通过 `ScheduleContext { local_hour }` 注入
+- 后续若引入更细粒度上下文，也应保持显式注入
 
 ## 错误契约
 
 非法调度配置：
 
 - 当前布尔字段不引入额外错误
-- 后续若增加复杂表达式，非法值统一进入 `TrendRadarError::InvalidConfig`
+- `schedule.window.start_hour == end_hour` 时进入 `TrendRadarError::InvalidConfig`
+- 超出 `0..=23` 的小时值进入 `TrendRadarError::InvalidConfig`
 
 时区相关错误：
 
@@ -83,8 +93,11 @@
 
 fixture：
 
-- 当前先复用 [minimal-valid.json](../../fixtures/system/config/minimal-valid.json)
-- 当前先复用 [invalid-empty-timezone.json](../../fixtures/system/config/invalid-empty-timezone.json)
+- 复用 [minimal-valid.json](../../fixtures/system/config/minimal-valid.json)
+- 新增 [window-daytime.json](../../fixtures/system/schedule/window-daytime.json)
+- 新增 [window-overnight.json](../../fixtures/system/schedule/window-overnight.json)
+- 新增 [invalid-window-equal-hours.json](../../fixtures/system/schedule/invalid-window-equal-hours.json)
+- 新增 [invalid-window-out-of-range.json](../../fixtures/system/schedule/invalid-window-out-of-range.json)
 
 测试：
 
@@ -95,9 +108,9 @@ fixture：
 快照：
 
 - 当前不需要
-- 当前布尔阶段开关已由 fixture 驱动测试覆盖
-- 后续如果进入时间窗口表达，再考虑固定输出快照
+- 当前窗口决策已由 fixture 驱动测试覆盖
+- 当前仍不需要快照
 
 ## 开放问题
 
-- 是否需要支持工作日、小时段、冷却周期等更细粒度规则
+- 是否需要支持工作日、冷却周期等更细粒度规则

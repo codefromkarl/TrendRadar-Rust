@@ -40,6 +40,8 @@
 
 - 已提供 `score_news`、`rank_news`、`group_news_by_source`
 - 已用固定 fixture 覆盖排序结果与来源聚合结果
+- 已补 `rank = 0` 的边界样例，确保评分不会溢出到 `101`
+- 已补同排名样例，固定最终按 `title` 升序的 tie-break 行为
 - 更高阶过滤与综合排序仍留待后续阶段
 
 ## 验证命令

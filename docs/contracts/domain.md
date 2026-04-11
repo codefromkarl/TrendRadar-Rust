@@ -101,18 +101,19 @@
 
 fixture：
 
-- 当前无独立 `domain` fixture
-- Wave 0 先复用 `config -> app::bootstrap` 链路证明 `RunContext` 与错误边界未被破坏
+- [fixtures/system/domain/news-item.json](../../fixtures/system/domain/news-item.json)
+- [fixtures/system/domain/rss-item.json](../../fixtures/system/domain/rss-item.json)
+- [fixtures/system/domain/run-context.json](../../fixtures/system/domain/run-context.json)
 
 测试：
 
 - `cargo test -p trendradar-domain`
-- 后续应补 `NewsItem` / `RssItem` 的序列化往返测试
+- 固定 `NewsItem`、`RssItem`、`RunContext` 的序列化 / 反序列化往返测试
 
 快照：
 
-- 首版暂不单独建快照
-- 当 `report` 契约固定后，再通过输出层快照间接锁定模型序列化结果
+- 当前不需要
+- 结构由 fixture roundtrip 断言固定
 
 ## 开放问题
 
