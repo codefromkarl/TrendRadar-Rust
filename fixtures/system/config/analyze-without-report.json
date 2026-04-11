@@ -1,0 +1,9 @@
+{
+  "timezone": "Asia/Shanghai",
+  "platforms": ["weibo", "zhihu"],
+  "schedule": {
+    "collect": true,
+    "analyze": true,
+    "push": false
+  }
+}

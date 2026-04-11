@@ -19,6 +19,7 @@
 
 ## 推荐分组
 
+- `fixtures/system/domain/`
 - `fixtures/system/config/`
 - `fixtures/system/fetch/`
 - `fixtures/system/analyze/`

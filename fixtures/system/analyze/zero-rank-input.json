@@ -1,0 +1,12 @@
+[
+  {
+    "title": "Invalid zero rank item",
+    "source_id": "edge-case",
+    "rank": 0
+  },
+  {
+    "title": "Normal top rank item",
+    "source_id": "edge-case",
+    "rank": 1
+  }
+]

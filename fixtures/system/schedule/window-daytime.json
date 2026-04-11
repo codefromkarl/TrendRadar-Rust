@@ -1,0 +1,13 @@
+{
+  "timezone": "Asia/Shanghai",
+  "platforms": ["weibo"],
+  "schedule": {
+    "collect": true,
+    "analyze": true,
+    "push": true,
+    "window": {
+      "start_hour": 9,
+      "end_hour": 18
+    }
+  }
+}
