@@ -108,6 +108,8 @@ mod tests {
                 push: false,
                 window: None,
             },
+            rss_feeds: Vec::new(),
+            hotlist_apis: Vec::new(),
         };
 
         assert_eq!(

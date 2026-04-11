@@ -1480,6 +1480,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "chrono-tz",
+ "mockito",
  "serde_json",
  "trendradar-analyze",
  "trendradar-config",
