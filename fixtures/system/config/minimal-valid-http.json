@@ -1,0 +1,20 @@
+{
+  "timezone": "Asia/Shanghai",
+  "schedule": {
+    "collect": true,
+    "analyze": true,
+    "push": true
+  },
+  "rss_feeds": [
+    {
+      "source_id": "rust-blog",
+      "url": "https://blog.rust-lang.org/feed.xml"
+    }
+  ],
+  "hotlist_apis": [
+    {
+      "platform_id": "weibo",
+      "url": "https://example.com/api/hotlist"
+    }
+  ]
+}
