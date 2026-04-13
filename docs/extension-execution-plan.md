@@ -329,8 +329,9 @@
 - 本地路径仍是默认实现
 - 当前进展：
 - `config` 已新增 `storage.backend` 与远程对象存储占位配置
-- `app` 已在边界层显式拒绝尚未实现的 `s3` 后端，避免误回退到本地 SQLite
+- `app` 当前已支持 `storage.backend = "s3" + provider = "mock-s3"` 的文件系统对象存储原型，其余真实远程 provider 仍显式拒绝，避免误回退到本地 SQLite
 - 已新增远程对象布局契约文档、fixture 和系统测试骨架，用于先固定 key 布局与读取顺序
+- `storage` 已新增 `MockRemoteNewsRepository` 与 `FileObjectStoreNewsRepository` 两层原型，用于先打通仓储语义和布局语义
 - 真实远程仓储实现和测试策略仍待后续补齐
 
 ### C2. AI 分析

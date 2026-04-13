@@ -6,7 +6,7 @@
 ## 当前状态
 
 - v1.2 功能补齐已进入文档校准阶段
-- 219 tests passed, 0 clippy issues
+- 221 tests passed, 0 clippy issues
 - Release binary: 9.6MB
 - CLI: `--config/--db/--output/--verbose/--dry-run/--help/--version`
 - 输出格式: `json / html / both / table / markdown`

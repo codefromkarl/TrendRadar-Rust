@@ -1,8 +1,11 @@
 //! 存储抽象：内存与文件 SQLite 仓储。
 
+use chrono::Utc;
 use rusqlite::{Connection, params};
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::path::Path;
+use std::fs::{create_dir_all, read_to_string, write};
+use std::path::{Path, PathBuf};
 use trendradar_domain::TrendRadarError;
 use trendradar_domain::{NewsItem, Result};
 
@@ -78,6 +81,140 @@ impl SqliteNewsRepository {
             .map_err(|error| TrendRadarError::Storage {
                 message: format!("failed to initialize sqlite schema: {error}"),
             })
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ObjectStoreIndex {
+    layout_version: u32,
+    backend: String,
+    updated_at: String,
+    shard_keys: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ObjectStoreShard {
+    source_id: String,
+    items: Vec<NewsItem>,
+}
+
+/// 文件系统对象存储原型仓储。
+///
+/// 该仓储使用本地目录模拟远程对象存储布局：
+///
+/// - `index/latest.json`
+/// - `shards/<date>/<source>.json`
+///
+/// 其目标是让 C1 在不接入真实云 SDK 的前提下先打通“对象布局 -> 读写 -> 合并”的真实链路。
+pub struct FileObjectStoreNewsRepository {
+    root: PathBuf,
+    prefix: String,
+}
+
+impl FileObjectStoreNewsRepository {
+    /// 打开或创建文件系统对象存储仓储。
+    pub fn open(root: &Path, prefix: impl Into<String>) -> Result<Self> {
+        let repository = Self {
+            root: root.to_path_buf(),
+            prefix: prefix.into(),
+        };
+        repository.initialize_layout()?;
+        Ok(repository)
+    }
+
+    fn initialize_layout(&self) -> Result<()> {
+        create_dir_all(self.root.join(&self.prefix).join("index")).map_err(|error| {
+            TrendRadarError::Storage {
+                message: format!(
+                    "failed to create object index directory {}: {error}",
+                    self.root.join(&self.prefix).join("index").display()
+                ),
+            }
+        })?;
+        create_dir_all(self.root.join(&self.prefix).join("shards")).map_err(|error| {
+            TrendRadarError::Storage {
+                message: format!(
+                    "failed to create object shard directory {}: {error}",
+                    self.root.join(&self.prefix).join("shards").display()
+                ),
+            }
+        })?;
+        Ok(())
+    }
+
+    fn index_path(&self) -> PathBuf {
+        self.root
+            .join(&self.prefix)
+            .join("index")
+            .join("latest.json")
+    }
+
+    fn load_index(&self) -> Result<ObjectStoreIndex> {
+        let path = self.index_path();
+        let contents = read_to_string(&path).map_err(|error| TrendRadarError::Storage {
+            message: format!("failed to read object index {}: {error}", path.display()),
+        })?;
+        serde_json::from_str(&contents).map_err(|error| TrendRadarError::Storage {
+            message: format!("failed to parse object index {}: {error}", path.display()),
+        })
+    }
+
+    fn load_index_if_exists(&self) -> Result<Option<ObjectStoreIndex>> {
+        let path = self.index_path();
+        if !path.exists() {
+            return Ok(None);
+        }
+        self.load_index().map(Some)
+    }
+
+    fn write_index(&self, index: &ObjectStoreIndex) -> Result<()> {
+        let path = self.index_path();
+        let body =
+            serde_json::to_string_pretty(index).map_err(|error| TrendRadarError::Storage {
+                message: format!(
+                    "failed to serialize object index {}: {error}",
+                    path.display()
+                ),
+            })?;
+        write(&path, body).map_err(|error| TrendRadarError::Storage {
+            message: format!("failed to write object index {}: {error}", path.display()),
+        })
+    }
+
+    fn shard_path(&self, key: &str) -> PathBuf {
+        self.root.join(key)
+    }
+
+    fn read_shard(&self, key: &str) -> Result<ObjectStoreShard> {
+        let path = self.shard_path(key);
+        let contents = read_to_string(&path).map_err(|error| TrendRadarError::Storage {
+            message: format!("failed to read object shard {}: {error}", path.display()),
+        })?;
+        serde_json::from_str(&contents).map_err(|error| TrendRadarError::Storage {
+            message: format!("failed to parse object shard {}: {error}", path.display()),
+        })
+    }
+
+    fn write_shard(&self, key: &str, shard: &ObjectStoreShard) -> Result<()> {
+        let path = self.shard_path(key);
+        if let Some(parent) = path.parent() {
+            create_dir_all(parent).map_err(|error| TrendRadarError::Storage {
+                message: format!(
+                    "failed to create object shard directory {}: {error}",
+                    parent.display()
+                ),
+            })?;
+        }
+        let body =
+            serde_json::to_string_pretty(shard).map_err(|error| TrendRadarError::Storage {
+                message: format!(
+                    "failed to serialize object shard {}: {error}",
+                    path.display()
+                ),
+            })?;
+        write(&path, body).map_err(|error| TrendRadarError::Storage {
+            message: format!("failed to write object shard {}: {error}", path.display()),
+        })
     }
 }
 
@@ -161,6 +298,104 @@ impl NewsRepository for SqliteNewsRepository {
             .map_err(|error| TrendRadarError::Storage {
                 message: format!("failed to decode stored news: {error}"),
             })
+    }
+}
+
+impl NewsRepository for FileObjectStoreNewsRepository {
+    fn save_news(&mut self, item: NewsItem) -> Result<()> {
+        self.save_news_batch(&[item])
+    }
+
+    fn save_news_batch(&mut self, items: &[NewsItem]) -> Result<()> {
+        let date = Utc::now().format("%Y-%m-%d").to_string();
+        let mut grouped: BTreeMap<String, Vec<NewsItem>> = BTreeMap::new();
+        for item in items {
+            grouped
+                .entry(item.source_id.clone())
+                .or_default()
+                .push(item.clone());
+        }
+
+        let mut index = self.load_index_if_exists()?.unwrap_or(ObjectStoreIndex {
+            layout_version: 1,
+            backend: "s3".to_owned(),
+            updated_at: Utc::now().to_rfc3339(),
+            shard_keys: Vec::new(),
+        });
+
+        for (source_id, incoming_items) in grouped {
+            let key = format!("{}/shards/{date}/{source_id}.json", self.prefix);
+            let mut best_by_title: BTreeMap<String, u32> = BTreeMap::new();
+
+            if index.shard_keys.iter().any(|existing| existing == &key) {
+                let existing = self.read_shard(&key)?;
+                for item in existing.items {
+                    best_by_title
+                        .entry(item.title)
+                        .and_modify(|rank| *rank = (*rank).min(item.rank))
+                        .or_insert(item.rank);
+                }
+            }
+
+            for item in incoming_items {
+                best_by_title
+                    .entry(item.title)
+                    .and_modify(|rank| *rank = (*rank).min(item.rank))
+                    .or_insert(item.rank);
+            }
+
+            let shard = ObjectStoreShard {
+                source_id: source_id.clone(),
+                items: best_by_title
+                    .into_iter()
+                    .map(|(title, rank)| NewsItem {
+                        title,
+                        source_id: source_id.clone(),
+                        rank,
+                    })
+                    .collect(),
+            };
+            self.write_shard(&key, &shard)?;
+            if !index.shard_keys.iter().any(|existing| existing == &key) {
+                index.shard_keys.push(key);
+            }
+        }
+
+        index.shard_keys.sort();
+        index.updated_at = Utc::now().to_rfc3339();
+        self.write_index(&index)
+    }
+
+    fn list_news(&self) -> Result<Vec<NewsItem>> {
+        let index = self.load_index()?;
+        let mut best_by_key: BTreeMap<(String, String), u32> = BTreeMap::new();
+
+        for key in index.shard_keys {
+            let shard = self.read_shard(&key)?;
+            for item in shard.items {
+                let dedupe = (item.source_id.clone(), item.title.clone());
+                best_by_key
+                    .entry(dedupe)
+                    .and_modify(|rank| *rank = (*rank).min(item.rank))
+                    .or_insert(item.rank);
+            }
+        }
+
+        let mut items: Vec<NewsItem> = best_by_key
+            .into_iter()
+            .map(|((source_id, title), rank)| NewsItem {
+                title,
+                source_id,
+                rank,
+            })
+            .collect();
+        items.sort_by(|left, right| {
+            left.rank
+                .cmp(&right.rank)
+                .then_with(|| left.source_id.cmp(&right.source_id))
+                .then_with(|| left.title.cmp(&right.title))
+        });
+        Ok(items)
     }
 }
 
@@ -261,7 +496,10 @@ impl NewsRepository for MockRemoteNewsRepository {
 
 #[cfg(test)]
 mod tests {
-    use super::{MockRemoteNewsRepository, NewsRepository, SqliteNewsRepository};
+    use super::{
+        FileObjectStoreNewsRepository, MockRemoteNewsRepository, NewsRepository,
+        SqliteNewsRepository,
+    };
     use std::error::Error;
     use std::fs::read_to_string;
     use trendradar_domain::NewsItem;
@@ -441,5 +679,35 @@ mod tests {
                 .to_string()
                 .contains("mock remote storage list failed")
         );
+    }
+
+    #[test]
+    fn file_object_store_repository_roundtrips_items() -> Result<(), Box<dyn Error>> {
+        let dir = tempfile::tempdir()?;
+        let mut repository = FileObjectStoreNewsRepository::open(dir.path(), "trendradar")?;
+        repository.save_news_batch(&[
+            NewsItem {
+                title: "Rust release".to_owned(),
+                source_id: "weibo".to_owned(),
+                rank: 3,
+            },
+            NewsItem {
+                title: "Rust release".to_owned(),
+                source_id: "weibo".to_owned(),
+                rank: 1,
+            },
+            NewsItem {
+                title: "AI chip rally".to_owned(),
+                source_id: "zhihu".to_owned(),
+                rank: 2,
+            },
+        ])?;
+
+        let stored = repository.list_news()?;
+        assert_eq!(stored.len(), 2);
+        assert_eq!(stored[0].title, "Rust release");
+        assert_eq!(stored[0].rank, 1);
+        assert!(dir.path().join("trendradar/index/latest.json").exists());
+        Ok(())
     }
 }

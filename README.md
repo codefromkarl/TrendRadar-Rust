@@ -66,7 +66,7 @@ flowchart LR
 ## 当前状态
 
 - 当前阶段：v1.2 工程收口，已完成 Wave 8 级别的核心功能补齐
-- 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 启动链路、`config -> fetch -> analyze -> storage -> report` 的 fixture / HTTP 系统链路、多个 crate 级边界样例，以及根级 `tests/system/` 下 66 条成功路径 / 空输入 / 错误路径 / 阶段组合样例；当前全工作区共 219 tests 通过
+- 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 启动链路、`config -> fetch -> analyze -> storage -> report` 的 fixture / HTTP 系统链路、多个 crate 级边界样例，以及根级 `tests/system/` 下 66 条成功路径 / 空输入 / 错误路径 / 阶段组合样例；当前全工作区共 221 tests 通过
 - 已建立内容：CI 基础验证、系统测试模板、Git hooks、提交模板、并行迁移规则
 - 当前不包含：真实远程对象存储实现、真实远程 LLM provider、完整 MCP 协议兼容层、Homebrew 等更完整的分发入口，以及更大范围的生态接入
 

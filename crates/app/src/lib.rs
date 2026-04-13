@@ -22,7 +22,7 @@ use trendradar_report::{
 use trendradar_schedule::{
     ScheduleContext, ScheduleDecision, decision_from_config, decision_from_config_at,
 };
-use trendradar_storage::{NewsRepository, SqliteNewsRepository};
+use trendradar_storage::{FileObjectStoreNewsRepository, NewsRepository, SqliteNewsRepository};
 
 /// 默认数据库文件名。
 const DEFAULT_DB_FILENAME: &str = "trendradar.db";
@@ -235,18 +235,36 @@ fn run_pipeline_with_fetchers(
     };
 
     // -- Store --
-    let mut repository = match config.storage.backend {
+    let mut repository: Box<dyn NewsRepository> = match config.storage.backend {
         StorageBackend::Sqlite => match db_path {
             Some(path) => {
                 info!(path = %path.display(), "opening file database");
-                SqliteNewsRepository::open(path)?
+                Box::new(SqliteNewsRepository::open(path)?)
             }
-            None => SqliteNewsRepository::in_memory()?,
+            None => Box::new(SqliteNewsRepository::in_memory()?),
         },
         StorageBackend::S3 => {
-            return Err(anyhow::anyhow!(
-                "remote storage backend s3 is not implemented yet"
-            ));
+            let remote = config.storage.remote.as_ref().ok_or_else(|| {
+                anyhow::anyhow!("remote storage config is required for s3 backend")
+            })?;
+            match remote.provider.as_deref() {
+                Some("mock-s3") => {
+                    let root = remote
+                        .endpoint
+                        .as_deref()
+                        .ok_or_else(|| anyhow::anyhow!("mock-s3 endpoint path is required"))?;
+                    let prefix = remote.prefix.as_deref().unwrap_or("trendradar");
+                    Box::new(FileObjectStoreNewsRepository::open(
+                        Path::new(root),
+                        prefix,
+                    )?)
+                }
+                _ => {
+                    return Err(anyhow::anyhow!(
+                        "remote storage backend s3 is not implemented yet"
+                    ));
+                }
+            }
         }
     };
     repository.save_news_batch(&filtered_items)?;
@@ -946,8 +964,44 @@ mod tests {
         assert!(
             error
                 .to_string()
-                .contains("remote storage backend s3 is not implemented yet")
+                .contains("remote storage config is required for s3 backend")
         );
+    }
+
+    #[test]
+    fn mock_s3_backend_writes_and_reads_via_file_object_store() -> anyhow::Result<()> {
+        let fetchers: Vec<Box<dyn Fetcher>> = vec![Box::new(ProbeFetcher {
+            source_id: "weibo".to_owned(),
+            active: Arc::new(AtomicUsize::new(0)),
+            max_active: Arc::new(AtomicUsize::new(0)),
+            sleep_for: Duration::from_millis(5),
+        })];
+        let dir = unique_test_dir("mock-s3");
+        std::fs::create_dir_all(&dir)?;
+        let mut config = test_config();
+        config.storage.backend = StorageBackend::S3;
+        config.storage.remote = Some(trendradar_config::RemoteStorageConfig {
+            provider: Some("mock-s3".to_owned()),
+            bucket: Some("trendradar".to_owned()),
+            endpoint: Some(dir.display().to_string()),
+            region: None,
+            prefix: Some("trendradar".to_owned()),
+        });
+
+        let result = run_pipeline_with_fetchers(
+            &config,
+            chrono::Utc::now(),
+            &fetchers,
+            None,
+            true,
+            true,
+            OutputMode::All,
+        )?;
+
+        assert_eq!(result.stored_items.len(), 1);
+        assert!(dir.join("trendradar/index/latest.json").exists());
+        let _ = std::fs::remove_dir_all(dir);
+        Ok(())
     }
 
     #[test]
