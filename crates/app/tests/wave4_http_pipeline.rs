@@ -177,6 +177,145 @@ fn config_pipeline_routes_multi_platform_hotlist_parsers() -> Result<(), Box<dyn
 }
 
 #[test]
+fn config_pipeline_keeps_successful_http_sources_when_one_source_fails()
+-> Result<(), Box<dyn Error>> {
+    let mut server = mockito::Server::new();
+
+    let rss_mock = server
+        .mock("GET", "/rss.xml")
+        .with_status(200)
+        .with_body(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Feed</title>
+    <item><title>Rust resilient success</title></item>
+  </channel>
+</rss>"#,
+        )
+        .create();
+
+    let hotlist_ok_mock = server
+        .mock("GET", "/toutiao")
+        .with_status(200)
+        .with_body(
+            r#"{
+                "data": [
+                    {"ClusterIdStr": "1", "Title": "头条成功项", "HotValue": "100"}
+                ]
+            }"#,
+        )
+        .create();
+
+    let hotlist_fail_mock = server
+        .mock("GET", "/broken-hotlist")
+        .with_status(500)
+        .create();
+
+    let config_json = format!(
+        r#"{{
+            "timezone":"Asia/Shanghai",
+            "rss_feeds":[{{"source_id":"test-blog","url":"{base}/rss.xml"}}],
+            "hotlist_apis":[
+                {{"platform_id":"toutiao","url":"{base}/toutiao","source_type":"toutiao"}},
+                {{"platform_id":"broken","url":"{base}/broken-hotlist","source_type":"generic"}}
+            ]
+        }}"#,
+        base = server.url()
+    );
+    let config = load_config_from_json_str(&config_json)?;
+
+    let started_at = chrono::Utc
+        .with_ymd_and_hms(2026, 4, 13, 10, 0, 0)
+        .single()
+        .ok_or("invalid timestamp")?;
+
+    let result = run_config_pipeline(&config, started_at, None)?;
+
+    rss_mock.assert();
+    hotlist_ok_mock.assert();
+    hotlist_fail_mock.assert();
+
+    assert_eq!(result.collected_items.len(), 2);
+    assert_eq!(result.stored_items.len(), 2);
+
+    let report = result.report_json.as_ref().ok_or("missing report")?;
+    assert!(report.contains("Rust resilient success"));
+    assert!(report.contains("头条成功项"));
+    Ok(())
+}
+
+#[test]
+fn config_pipeline_skips_invalid_new_platform_payload_but_keeps_other_sources()
+-> Result<(), Box<dyn Error>> {
+    let mut server = mockito::Server::new();
+
+    let baidu_mock = server
+        .mock("GET", "/baidu")
+        .with_status(200)
+        .with_body(
+            r#"<!doctype html><!--s-data:{"data":{"cards":[{"content":[{"word":"百度保留项","rawUrl":"https://example.com/baidu"}]}]}}-->"#,
+        )
+        .create();
+
+    let pengpai_bad_mock = server
+        .mock("GET", "/pengpai")
+        .with_status(200)
+        .with_body(r#"{"data":{"hotNews":[{"contId":"2"}]}}"#)
+        .create();
+
+    let rss_mock = server
+        .mock("GET", "/rss.xml")
+        .with_status(200)
+        .with_body(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Feed</title>
+    <item><title>RSS 保留项</title></item>
+  </channel>
+</rss>"#,
+        )
+        .create();
+
+    let config_json = format!(
+        r#"{{
+            "timezone":"Asia/Shanghai",
+            "rss_feeds":[{{"source_id":"test-blog","url":"{base}/rss.xml"}}],
+            "hotlist_apis":[
+                {{"platform_id":"baidu","url":"{base}/baidu","source_type":"baidu"}},
+                {{"platform_id":"pengpai","url":"{base}/pengpai","source_type":"pengpai"}}
+            ]
+        }}"#,
+        base = server.url()
+    );
+    let config = load_config_from_json_str(&config_json)?;
+
+    let started_at = chrono::Utc
+        .with_ymd_and_hms(2026, 4, 13, 10, 0, 0)
+        .single()
+        .ok_or("invalid timestamp")?;
+
+    let result = run_config_pipeline(&config, started_at, None)?;
+
+    baidu_mock.assert();
+    pengpai_bad_mock.assert();
+    rss_mock.assert();
+
+    assert_eq!(result.collected_items.len(), 2);
+
+    let titles: Vec<&str> = result
+        .collected_items
+        .iter()
+        .map(|item| item.title.as_str())
+        .collect();
+    assert!(titles.contains(&"百度保留项"));
+    assert!(titles.contains(&"RSS 保留项"));
+    assert!(!titles.contains(&"澎湃测试"));
+    Ok(())
+}
+
+#[test]
 fn config_pipeline_propagates_http_error() -> Result<(), Box<dyn Error>> {
     let mut server = mockito::Server::new();
 
