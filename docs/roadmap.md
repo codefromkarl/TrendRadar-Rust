@@ -6,7 +6,7 @@
 ## 当前状态
 
 - v1.2 功能补齐已进入文档校准阶段
-- 196 tests passed, 0 clippy issues
+- 198 tests passed, 0 clippy issues
 - Release binary: 9.6MB
 - CLI: `--config/--db/--output/--verbose/--dry-run/--help/--version`
 - 输出格式: `json / html / both / table / markdown`
@@ -87,6 +87,7 @@
 
 - **目标**: 对比 Python 版本，量化 Rust 性能优势
 - **依赖**: `criterion` crate
+- **当前**: 已有 `cargo bench --package trendradar-app --bench pipeline_bench` 入口和 Rust 内部基线，待补 Python 对比与展示收口
 - **状态**: ⬜ 待办
 
 #### O5: 集成测试覆盖增强

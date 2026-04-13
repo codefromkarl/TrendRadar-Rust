@@ -18,3 +18,9 @@ mod app_pipeline_modes;
 
 #[path = "system/config_schedule_errors.rs"]
 mod config_schedule_errors;
+
+#[path = "system/large_input_stability.rs"]
+mod large_input_stability;
+
+#[path = "system/http_resilient_recovery.rs"]
+mod http_resilient_recovery;

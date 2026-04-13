@@ -66,7 +66,7 @@ flowchart LR
 ## 当前状态
 
 - 当前阶段：v1.2 工程收口，已完成 Wave 8 级别的核心功能补齐
-- 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 启动链路、`config -> fetch -> analyze -> storage -> report` 的 fixture / HTTP 系统链路、多个 crate 级边界样例，以及根级 `tests/system/` 下 62 条成功路径 / 空输入 / 错误路径 / 阶段组合样例；当前全工作区共 196 tests 通过
+- 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 启动链路、`config -> fetch -> analyze -> storage -> report` 的 fixture / HTTP 系统链路、多个 crate 级边界样例，以及根级 `tests/system/` 下 64 条成功路径 / 空输入 / 错误路径 / 阶段组合样例；当前全工作区共 198 tests 通过
 - 已建立内容：CI 基础验证、系统测试模板、Git hooks、提交模板、并行迁移规则
 - 当前不包含：远程对象存储、AI / MCP 扩展能力、Homebrew 等更完整的分发入口，以及更大范围的生态接入
 
@@ -149,6 +149,34 @@ just doc
 | `just doc` / `just doc-open` | 生成或打开本地 API 文档 |
 
 `just doc` 底层执行的是 `cargo doc --workspace --no-deps`，产物位于 `target/doc`。
+
+## 性能基线
+
+当前仓库已经提供基于 Criterion 的 benchmark 入口：
+
+```bash
+cargo bench --package trendradar-app --bench pipeline_bench
+```
+
+当前可复用的基线主要覆盖：
+
+- `pipeline_total/fixture_pipeline_minimal`
+- `pipeline_stage/fetch_fixture_sources`
+- `pipeline_stage/analyze_filter_rank_group`
+- `pipeline_stage/storage_in_memory_roundtrip`
+- `pipeline_stage/report_render_all_formats`
+
+当前文档化基线结果：
+
+| Benchmark | 当前基线 |
+| --- | --- |
+| `pipeline_total/fixture_pipeline_minimal` | `147.17 µs ~ 166.30 µs` |
+| `pipeline_stage/fetch_fixture_sources` | `9.0537 µs ~ 9.4556 µs` |
+| `pipeline_stage/analyze_filter_rank_group` | `1.1192 µs ~ 1.1954 µs` |
+| `pipeline_stage/storage_in_memory_roundtrip` | `75.258 µs ~ 84.820 µs` |
+| `pipeline_stage/report_render_all_formats` | `30.268 µs ~ 31.643 µs` |
+
+这些结果目前用于 Rust 内部基线对照。Python 对比值和更完整的对外展示仍留待后续补充。
 
 ## CLI 退出码
 
