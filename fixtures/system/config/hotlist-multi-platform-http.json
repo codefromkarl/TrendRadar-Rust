@@ -1,0 +1,31 @@
+{
+  "timezone": "Asia/Shanghai",
+  "schedule": {
+    "collect": true,
+    "analyze": true,
+    "push": true
+  },
+  "http_timeout_secs": 5,
+  "hotlist_apis": [
+    {
+      "platform_id": "toutiao",
+      "url": "__BASE_URL__/toutiao",
+      "source_type": "toutiao"
+    },
+    {
+      "platform_id": "baidu",
+      "url": "__BASE_URL__/baidu",
+      "source_type": "baidu"
+    },
+    {
+      "platform_id": "pengpai",
+      "url": "__BASE_URL__/pengpai",
+      "source_type": "pengpai"
+    },
+    {
+      "platform_id": "cls",
+      "url": "__BASE_URL__/cls",
+      "source_type": "cls"
+    }
+  ]
+}

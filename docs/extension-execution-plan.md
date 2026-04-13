@@ -228,7 +228,7 @@
 
 ### B3. 热榜平台扩展
 
-- 状态：`todo`
+- 状态：`done`
 - 目标：在现有 `HotlistParser` 扩展点上继续补齐头条、百度、澎湃、财联社等平台。
 - 主要范围：`crates/fetch`、`crates/config`、fixtures、系统测试
 - 关键输出：
@@ -245,6 +245,15 @@
 - 完成标准：
 - 新平台可以独立解析并通过系统测试
 - 不影响已有 `generic/weibo/zhihu/bilibili` 行为
+- 当前实现：
+- `fetch` 已新增 `ToutiaoHotlistParser`、`BaiduHotlistParser`、`PengpaiHotlistParser`、`ClsHotlistParser`
+- `hotlist_parser_for()` 已支持 `toutiao`、`baidu`、`pengpai`、`cls`，并兼容 `thepaper`、`cls-hot` 别名路由
+- 已新增 `fixtures/system/config/hotlist-multi-platform-http.json` 作为多平台 HTTP 配置样例
+- `crates/app/tests/wave4_http_pipeline.rs` 已补多平台 `source_type` 路由测试，验证 `app -> fetch parser factory -> HTTP pipeline` 闭环
+- 验证结果：
+- `cargo test -p trendradar-fetch`
+- `cargo test -p trendradar-app --test wave4_http_pipeline`
+- `cargo check --workspace --all-targets`
 
 ### B4. 错误码规范
 
