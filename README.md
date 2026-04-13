@@ -68,7 +68,45 @@ flowchart LR
 - 当前阶段：v1.2 工程收口，已完成 Wave 8 级别的核心功能补齐
 - 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 启动链路、`config -> fetch -> analyze -> storage -> report` 的 fixture / HTTP 系统链路、多个 crate 级边界样例，以及根级 `tests/system/` 下 62 条成功路径 / 空输入 / 错误路径 / 阶段组合样例；当前全工作区共 196 tests 通过
 - 已建立内容：CI 基础验证、系统测试模板、Git hooks、提交模板、并行迁移规则
-- 当前不包含：远程对象存储、AI / MCP 扩展能力、完整安装与分发入口，以及更大范围的生态接入
+- 当前不包含：远程对象存储、AI / MCP 扩展能力、Homebrew 等更完整的分发入口，以及更大范围的生态接入
+
+## 安装
+
+### 方式 1：用 release 安装脚本
+
+适用于 Linux x86_64 和 macOS arm64：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/codefromkarl/TrendRadar-Rust/main/install.sh | bash
+```
+
+指定版本或安装目录：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/codefromkarl/TrendRadar-Rust/main/install.sh | bash -s -- --version v0.1.0 --dir "$HOME/.local/bin"
+```
+
+脚本默认从 GitHub Releases 下载预编译二进制，当前支持：
+
+- `trendradar-linux-x86_64`
+- `trendradar-macos-aarch64`
+
+Windows 请直接从 Releases 页面下载 `trendradar-windows-x86_64.exe`。
+
+### 方式 2：从源码安装
+
+如果你已经克隆仓库，可以直接用 Cargo 安装：
+
+```bash
+cargo install --path crates/app --locked
+```
+
+安装完成后建议执行：
+
+```bash
+trendradar --help
+trendradar --version
+```
 
 ## 快速开始
 

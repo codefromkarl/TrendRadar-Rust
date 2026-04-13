@@ -285,7 +285,7 @@
 
 ### B5. 安装与分发入口
 
-- 状态：`todo`
+- 状态：`done`
 - 目标：补齐 `install.sh`、`cargo install` 说明和后续 Homebrew 入口。
 - 主要范围：仓库根目录、README、CI/release 文档
 - 关键输出：
@@ -301,6 +301,16 @@
 - `cargo test --workspace`
 - 完成标准：
 - 新用户按 README 能完成安装和首次运行
+- 当前实现：
+- 仓库根目录已新增 `install.sh`，支持 Linux x86_64 与 macOS arm64 的 GitHub Releases 安装
+- `README.md` 已新增安装章节，覆盖 release 安装脚本、源码 `cargo install --path crates/app --locked` 和 Windows 手动下载说明
+- `scripts/bootstrap.sh` 已同步当前 `rust-toolchain.toml` 的 `1.94.1` 版本，避免环境准备脚本与活文档脱节
+- Homebrew formula 继续留作后续按需补充，不阻塞当前安装闭环
+- 验证结果：
+- `bash -n ./install.sh`
+- `./install.sh --help`
+- `./scripts/check_environment.sh`
+- `cargo test --workspace`
 
 ## Phase C：生态扩展
 
