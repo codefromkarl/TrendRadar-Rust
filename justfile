@@ -48,4 +48,20 @@ deny:
 
 verify-basic: fmt-check check test-basic
 
+# Clean build artifacts older than N days (default: 7)
+sweep days="7":
+    cargo sweep --time {{days}}
+
+# Clean all unused build artifacts
+sweep-all:
+    cargo sweep --all
+
+# Watch for file changes and auto-run tests
+watch-test:
+    cargo watch -x test
+
+# Watch for file changes and auto-run check
+watch-check:
+    cargo watch -x check
+
 verify: fmt-check lint test

@@ -11,4 +11,9 @@ cargo install cargo-nextest --version 0.9.100 --locked
 cargo install cargo-llvm-cov --version 0.6.21 --locked
 cargo install cargo-deny --version 0.18.3 --locked
 
+# Build performance tools
+cargo install cargo-sweep
+cargo install sccache
+cargo install cargo-watch
+
 bash ./scripts/install_githooks.sh

@@ -48,6 +48,12 @@ check_cmd "cargo-nextest" "cargo-nextest"
 check_cmd "cargo-deny" "cargo-deny"
 check_cmd "cargo-llvm-cov" "cargo-llvm-cov"
 
+# Build performance tools
+check_cmd "cargo-sweep" "cargo-sweep"
+check_cmd "sccache" "sccache"
+check_cmd "cargo-watch" "cargo-watch"
+check_cmd "mold (fast linker)" "mold"
+
 if [[ "$missing" -eq 1 ]]; then
     echo "[env-check] 环境检查未通过，请先执行 ./scripts/bootstrap.sh 或手动补齐工具。"
     exit 1
