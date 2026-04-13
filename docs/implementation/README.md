@@ -15,6 +15,7 @@
 ## 文档索引
 
 - [domain](./domain.md)
+- [ai](./ai.md)
 - [config](./config.md)
 - [schedule](./schedule.md)
 - [analyze](./analyze.md)
@@ -23,6 +24,7 @@
 - [storage-remote-layout](./storage-remote-layout.md)
 - [report](./report.md)
 - [app](./app.md)
+- [mcp](./mcp.md)
 
 ## 使用规则
 

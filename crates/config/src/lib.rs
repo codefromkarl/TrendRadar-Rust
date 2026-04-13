@@ -132,6 +132,42 @@ pub struct StorageConfig {
     pub remote: Option<RemoteStorageConfig>,
 }
 
+/// AI 分析配置。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AiAnalysisConfig {
+    /// 是否启用 AI 分析。
+    #[serde(default)]
+    pub enabled: bool,
+    /// provider 名称。
+    #[serde(default = "default_ai_provider")]
+    pub provider: String,
+    /// 超时秒数。
+    #[serde(default = "default_ai_timeout_secs")]
+    pub timeout_secs: u64,
+    /// 重试次数。
+    #[serde(default)]
+    pub retry_attempts: u8,
+    /// 分析时最多纳入的条目数。
+    #[serde(default = "default_ai_max_items")]
+    pub max_items: usize,
+    /// 可选 prompt 提示。
+    #[serde(default)]
+    pub prompt: Option<String>,
+}
+
+impl Default for AiAnalysisConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            provider: default_ai_provider(),
+            timeout_secs: default_ai_timeout_secs(),
+            retry_attempts: 0,
+            max_items: default_ai_max_items(),
+            prompt: None,
+        }
+    }
+}
+
 /// 应用配置。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -155,6 +191,9 @@ pub struct AppConfig {
     /// 存储配置。
     #[serde(default)]
     pub storage: StorageConfig,
+    /// AI 分析配置。
+    #[serde(default)]
+    pub ai_analysis: AiAnalysisConfig,
     /// 关键词过滤列表（不区分大小写）。
     #[serde(default)]
     pub keywords: Vec<String>,
@@ -166,6 +205,18 @@ pub struct AppConfig {
 /// 默认 HTTP 超时 30 秒。
 const fn default_http_timeout_secs() -> u64 {
     30
+}
+
+fn default_ai_provider() -> String {
+    "mock".to_owned()
+}
+
+const fn default_ai_timeout_secs() -> u64 {
+    15
+}
+
+const fn default_ai_max_items() -> usize {
+    5
 }
 
 /// 通知配置。
@@ -198,6 +249,7 @@ impl Default for AppConfig {
             hotlist_apis: Vec::new(),
             http_timeout_secs: default_http_timeout_secs(),
             storage: StorageConfig::default(),
+            ai_analysis: AiAnalysisConfig::default(),
             keywords: Vec::new(),
             notification: NotificationConfig::default(),
         }
@@ -275,8 +327,8 @@ pub fn load_config_from_file(path: &Path) -> Result<AppConfig> {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::{
-        AppConfig, NotificationConfig, RemoteStorageConfig, ScheduleConfig, ScheduleWindowConfig,
-        StorageBackend, StorageConfig, load_config_from_json_str,
+        AiAnalysisConfig, AppConfig, NotificationConfig, RemoteStorageConfig, ScheduleConfig,
+        ScheduleWindowConfig, StorageBackend, StorageConfig, load_config_from_json_str,
     };
     use std::error::Error;
     use std::fs::read_to_string;
@@ -331,6 +383,7 @@ mod tests {
                 hotlist_apis: Vec::new(),
                 http_timeout_secs: 30,
                 storage: StorageConfig::default(),
+                ai_analysis: AiAnalysisConfig::default(),
                 keywords: Vec::new(),
                 notification: NotificationConfig::default(),
             }
@@ -418,6 +471,7 @@ mod tests {
         assert!(config.rss_feeds.is_empty());
         assert!(config.hotlist_apis.is_empty());
         assert_eq!(config.storage, StorageConfig::default());
+        assert_eq!(config.ai_analysis, AiAnalysisConfig::default());
         Ok(())
     }
 
@@ -448,6 +502,35 @@ mod tests {
                 region: Some("cn-hangzhou".to_owned()),
                 prefix: Some("daily/".to_owned()),
             })
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn ai_analysis_config_loads_from_json() -> Result<(), Box<dyn Error>> {
+        let input = r#"{
+            "timezone":"Asia/Shanghai",
+            "ai_analysis":{
+                "enabled":true,
+                "provider":"mock",
+                "timeout_secs":20,
+                "retry_attempts":2,
+                "max_items":3,
+                "prompt":"focus on ai"
+            }
+        }"#;
+        let config = load_config_from_json_str(input)?;
+
+        assert_eq!(
+            config.ai_analysis,
+            AiAnalysisConfig {
+                enabled: true,
+                provider: "mock".to_owned(),
+                timeout_secs: 20,
+                retry_attempts: 2,
+                max_items: 3,
+                prompt: Some("focus on ai".to_owned()),
+            }
         );
         Ok(())
     }

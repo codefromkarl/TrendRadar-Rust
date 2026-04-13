@@ -222,6 +222,10 @@ fn main() {
                     }
                 }
             }
+
+            if let Some(ai_markdown) = &result.ai_analysis_markdown {
+                eprintln!("\n--- AI Analysis ---\n{ai_markdown}");
+            }
         }
         Err(error) => {
             tracing::error!(%error, "pipeline failed");

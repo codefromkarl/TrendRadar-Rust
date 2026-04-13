@@ -7,12 +7,11 @@ use std::time::Duration;
 use chrono::{DateTime, Datelike, Timelike, Utc, Weekday};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
+use trendradar_ai::{provider_for, render_ai_analysis_markdown};
 use trendradar_analyze::{
     RankedNews, SourceSummary, filter_by_keywords, group_news_by_source, rank_news,
 };
-use trendradar_config::{
-    AppConfig, StorageBackend, StorageConfig, load_default_config, validate_config,
-};
+use trendradar_config::{AppConfig, StorageBackend, load_default_config, validate_config};
 use trendradar_domain::{NewsItem, RunContext};
 use trendradar_fetch::{
     Fetcher, FixtureHotlistFetcher, FixtureRssFetcher, HttpHotlistFetcher, HttpRssFetcher,
@@ -127,6 +126,8 @@ pub struct PipelineResult {
     pub report_table: Option<String>,
     /// Markdown 表格输出。
     pub report_markdown: Option<String>,
+    /// AI 分析 Markdown 输出。
+    pub ai_analysis_markdown: Option<String>,
 }
 
 /// 报告输出模式。
@@ -252,12 +253,13 @@ fn run_pipeline_with_fetchers(
     let stored_items = repository.list_news()?;
     info!(count = stored_items.len(), "storage completed");
 
+    let context = RunContext {
+        started_at,
+        timezone: config.timezone.clone(),
+    };
+
     // -- Report --
     let (report_json, report_html, report_table, report_markdown) = if decision.push {
-        let context = RunContext {
-            started_at,
-            timezone: config.timezone.clone(),
-        };
         let json = if output_mode.includes_json() {
             Some(render_news_json(&stored_items, &context)?)
         } else {
@@ -308,6 +310,28 @@ fn run_pipeline_with_fetchers(
         (None, None, None, None)
     };
 
+    let ai_analysis_markdown = if config.ai_analysis.enabled {
+        match provider_for(
+            &config.ai_analysis.provider,
+            config.ai_analysis.max_items,
+            config.ai_analysis.prompt.clone(),
+        ) {
+            Ok(provider) => match provider.analyze(&stored_items, &context) {
+                Ok(analysis) => Some(render_ai_analysis_markdown(&analysis)),
+                Err(error) => {
+                    warn!(%error, "ai analysis failed");
+                    None
+                }
+            },
+            Err(error) => {
+                warn!(%error, "ai analysis provider is unavailable");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     if decision.collect || decision.analyze || decision.push {
         write_cooldown_state(db_path, started_at)?;
     }
@@ -323,6 +347,7 @@ fn run_pipeline_with_fetchers(
         report_html,
         report_table,
         report_markdown,
+        ai_analysis_markdown,
     })
 }
 
@@ -621,7 +646,8 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
     use trendradar_config::{
-        AppConfig, NotificationConfig, ScheduleConfig, StorageBackend, StorageConfig,
+        AiAnalysisConfig, AppConfig, NotificationConfig, ScheduleConfig, StorageBackend,
+        StorageConfig,
     };
     use trendradar_domain::NewsItem;
     use trendradar_fetch::{FetchError, Fetcher};
@@ -676,6 +702,7 @@ mod tests {
             hotlist_apis: Vec::new(),
             http_timeout_secs: 5,
             storage: StorageConfig::default(),
+            ai_analysis: AiAnalysisConfig::default(),
             keywords: Vec::new(),
             notification: NotificationConfig::default(),
         }
@@ -921,5 +948,63 @@ mod tests {
                 .to_string()
                 .contains("remote storage backend s3 is not implemented yet")
         );
+    }
+
+    #[test]
+    fn ai_analysis_generates_markdown_when_enabled() -> anyhow::Result<()> {
+        let fetchers: Vec<Box<dyn Fetcher>> = vec![Box::new(ProbeFetcher {
+            source_id: "weibo".to_owned(),
+            active: Arc::new(AtomicUsize::new(0)),
+            max_active: Arc::new(AtomicUsize::new(0)),
+            sleep_for: Duration::from_millis(5),
+        })];
+        let mut config = test_config();
+        config.ai_analysis.enabled = true;
+        config.ai_analysis.provider = "mock".to_owned();
+        config.ai_analysis.max_items = 1;
+
+        let result = run_pipeline_with_fetchers(
+            &config,
+            chrono::Utc::now(),
+            &fetchers,
+            None,
+            true,
+            true,
+            OutputMode::All,
+        )?;
+
+        let markdown = result
+            .ai_analysis_markdown
+            .ok_or_else(|| anyhow::anyhow!("missing ai analysis markdown"))?;
+        assert!(markdown.contains("## AI Analysis"));
+        assert!(markdown.contains("weibo item"));
+        Ok(())
+    }
+
+    #[test]
+    fn unsupported_ai_provider_does_not_break_pipeline() -> anyhow::Result<()> {
+        let fetchers: Vec<Box<dyn Fetcher>> = vec![Box::new(ProbeFetcher {
+            source_id: "rss".to_owned(),
+            active: Arc::new(AtomicUsize::new(0)),
+            max_active: Arc::new(AtomicUsize::new(0)),
+            sleep_for: Duration::from_millis(5),
+        })];
+        let mut config = test_config();
+        config.ai_analysis.enabled = true;
+        config.ai_analysis.provider = "openai".to_owned();
+
+        let result = run_pipeline_with_fetchers(
+            &config,
+            chrono::Utc::now(),
+            &fetchers,
+            None,
+            true,
+            true,
+            OutputMode::All,
+        )?;
+
+        assert_eq!(result.collected_items.len(), 1);
+        assert!(result.ai_analysis_markdown.is_none());
+        Ok(())
     }
 }

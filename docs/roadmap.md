@@ -6,7 +6,7 @@
 ## 当前状态
 
 - v1.2 功能补齐已进入文档校准阶段
-- 210 tests passed, 0 clippy issues
+- 219 tests passed, 0 clippy issues
 - Release binary: 9.6MB
 - CLI: `--config/--db/--output/--verbose/--dry-run/--help/--version`
 - 输出格式: `json / html / both / table / markdown`
@@ -110,13 +110,15 @@
 
 - **目标**: 基于 Rust 内核构建 MCP tool 接口
 - **前置**: 内核 API 稳定
-- **状态**: ⬜ 待评估
+- **当前**: 已落最小查询型工具服务入口 `trendradar-mcp`，提供 `tools/list` 与查询类 `tools/call`
+- **状态**: ✅ 最小版本已完成
 
 #### P2: AI 分析接入
 
 - **目标**: LLM 驱动的新闻摘要/分析
 - **前置**: P1 或独立 HTTP 服务
-- **状态**: ⬜ 待评估
+- **当前**: 已落独立 `trendradar-ai` crate、`mock` provider、配置字段和 app 旁路集成；真实远程 provider 仍待补
+- **状态**: ✅ 最小版本已完成
 
 #### P3: AI 翻译
 
@@ -161,8 +163,8 @@ v1.2.0 — 通知与调度扩展
 v2.0.0 — 生态扩展（Phase 5）
 ├── P4: 远程对象存储
 ├── P5: 可扩展通知 Sink
-├── P1: MCP Server
-└── P2/P3: AI 分析/翻译（按需）
+├── ✅ P1: MCP Server
+└── ✅ P2 / P3: AI 分析 / 翻译（最小版本 / 按需扩展）
 ```
 
 ## 决策原则

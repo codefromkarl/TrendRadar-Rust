@@ -2074,6 +2074,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "trendradar-ai"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "thiserror",
+ "trendradar-domain",
+]
+
+[[package]]
 name = "trendradar-analyze"
 version = "0.1.0"
 dependencies = [
@@ -2095,6 +2105,7 @@ dependencies = [
  "serde_json",
  "tracing",
  "tracing-subscriber",
+ "trendradar-ai",
  "trendradar-analyze",
  "trendradar-config",
  "trendradar-domain",
@@ -2137,6 +2148,20 @@ dependencies = [
  "thiserror",
  "trendradar-config",
  "trendradar-domain",
+]
+
+[[package]]
+name = "trendradar-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "serde",
+ "serde_json",
+ "trendradar-ai",
+ "trendradar-domain",
+ "trendradar-report",
+ "trendradar-storage",
 ]
 
 [[package]]
@@ -2191,11 +2216,13 @@ dependencies = [
  "insta",
  "serde",
  "serde_json",
+ "trendradar-ai",
  "trendradar-analyze",
  "trendradar-app",
  "trendradar-config",
  "trendradar-domain",
  "trendradar-fetch",
+ "trendradar-mcp",
  "trendradar-report",
  "trendradar-schedule",
  "trendradar-storage",

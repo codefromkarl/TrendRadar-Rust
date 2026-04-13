@@ -335,7 +335,7 @@
 
 ### C2. AI 分析
 
-- 状态：`todo`
+- 状态：`done`
 - 目标：基于内核输出增加摘要、主题分析、标签抽取等能力。
 - 前置条件：A1 已完成，性能基线明确；B1-B3 至少完成一项，避免输入模型频繁变化。
 - 主要范围：新增独立 crate 或独立模块，不直接污染核心 pipeline
@@ -345,10 +345,15 @@
 - 与报告层的集成点
 - 完成标准：
 - AI 能力为可选旁路，不阻塞核心抓取与存储链路
+- 当前进展：
+- 已新增独立 `trendradar-ai` crate，提供 `AnalysisProvider` trait、`mock` provider 和 Markdown 渲染
+- `config.ai_analysis` 已新增最小配置字段
+- `app` 已可在开启配置后生成 `ai_analysis_markdown`，provider 不可用时只 warn + skip
+- 真实远程 LLM provider、timeout/retry 精细控制和输出格式扩展仍待后续补齐
 
 ### C3. MCP Server
 
-- 状态：`todo`
+- 状态：`done`
 - 目标：将稳定的 Rust 内核能力以工具接口形式暴露。
 - 前置条件：C2 可选；核心内核 API 稳定。
 - 主要范围：独立服务入口、工具协议层、文档
@@ -359,6 +364,11 @@
 - 完成标准：
 - MCP 服务不复用 CLI 输出作为协议层
 - 工具契约可单独测试
+- 当前进展：
+- 已新增独立 `trendradar-mcp` crate 和 `trendradar-mcp` 二进制
+- 当前提供 `tools/list` 和查询类 `tools/call`
+- 已支持 `storage.list_news`、`report.render_json`、`ai.analyze` 三个查询工具
+- 当前更接近最小查询型工具服务，后续可继续向完整 MCP 协议兼容层收口
 
 ## 单任务执行模板
 

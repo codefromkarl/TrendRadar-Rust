@@ -176,6 +176,7 @@ mod tests {
             hotlist_apis: Vec::new(),
             http_timeout_secs: 30,
             storage: Default::default(),
+            ai_analysis: Default::default(),
             keywords: Vec::new(),
             notification: trendradar_config::NotificationConfig::default(),
         };
@@ -274,6 +275,7 @@ mod tests {
             hotlist_apis: Vec::new(),
             http_timeout_secs: 30,
             storage: Default::default(),
+            ai_analysis: Default::default(),
             keywords: Vec::new(),
             notification: trendradar_config::NotificationConfig::default(),
         };
@@ -322,6 +324,7 @@ mod tests {
             hotlist_apis: Vec::new(),
             http_timeout_secs: 30,
             storage: Default::default(),
+            ai_analysis: Default::default(),
             keywords: Vec::new(),
             notification: trendradar_config::NotificationConfig::default(),
         };
@@ -363,6 +366,7 @@ mod tests {
             hotlist_apis: Vec::new(),
             http_timeout_secs: 30,
             storage: Default::default(),
+            ai_analysis: Default::default(),
             keywords: Vec::new(),
             notification: trendradar_config::NotificationConfig::default(),
         };
@@ -413,6 +417,7 @@ mod tests {
             hotlist_apis: Vec::new(),
             http_timeout_secs: 30,
             storage: Default::default(),
+            ai_analysis: Default::default(),
             keywords: Vec::new(),
             notification: trendradar_config::NotificationConfig::default(),
         };

@@ -61,14 +61,14 @@ flowchart LR
   F --> G[Report]
 ```
 
-当前已经落地并验证的是两条链路：`config -> app::bootstrap` 的基础启动校验，以及基于 fixture 和 HTTP 配置的 `config -> fetch -> analyze -> storage -> report` 闭环。与此同时，仓库已补齐多平台热榜 parser、工作日 / 周末调度与冷却周期、多通知渠道以及稳定 CLI 退出码，使核心 crate 的行为不只“能跑通”，也“可复查”。更复杂的生态能力仍按迁移计划逐步进入 Rust 内核，而不是一次性重写整套旧系统。
+当前已经落地并验证的是两条链路：`config -> app::bootstrap` 的基础启动校验，以及基于 fixture 和 HTTP 配置的 `config -> fetch -> analyze -> storage -> report` 闭环。与此同时，仓库已补齐多平台热榜 parser、工作日 / 周末调度与冷却周期、多通知渠道、稳定 CLI 退出码、可选 AI 分析旁路和最小查询型工具服务入口，使核心 crate 的行为不只“能跑通”，也“可复查”。更复杂的生态能力仍按迁移计划逐步进入 Rust 内核，而不是一次性重写整套旧系统。
 
 ## 当前状态
 
 - 当前阶段：v1.2 工程收口，已完成 Wave 8 级别的核心功能补齐
-- 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 启动链路、`config -> fetch -> analyze -> storage -> report` 的 fixture / HTTP 系统链路、多个 crate 级边界样例，以及根级 `tests/system/` 下 66 条成功路径 / 空输入 / 错误路径 / 阶段组合样例；当前全工作区共 210 tests 通过
+- 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 启动链路、`config -> fetch -> analyze -> storage -> report` 的 fixture / HTTP 系统链路、多个 crate 级边界样例，以及根级 `tests/system/` 下 66 条成功路径 / 空输入 / 错误路径 / 阶段组合样例；当前全工作区共 219 tests 通过
 - 已建立内容：CI 基础验证、系统测试模板、Git hooks、提交模板、并行迁移规则
-- 当前不包含：远程对象存储、AI / MCP 扩展能力、Homebrew 等更完整的分发入口，以及更大范围的生态接入
+- 当前不包含：真实远程对象存储实现、真实远程 LLM provider、完整 MCP 协议兼容层、Homebrew 等更完整的分发入口，以及更大范围的生态接入
 
 ## 安装
 
@@ -197,12 +197,14 @@ cargo bench --package trendradar-app --bench pipeline_bench
 | 路径 | 作用 |
 | --- | --- |
 | `crates/domain` | 领域模型、共享错误、运行元数据 |
+| `crates/ai` | 可选 AI 分析旁路与 provider 抽象 |
 | `crates/config` | 配置模型、默认值和加载入口 |
 | `crates/schedule` | 调度规则解析 |
 | `crates/analyze` | 过滤、聚合、排序等纯逻辑 |
 | `crates/storage` | 存储抽象和后续本地持久化实现 |
 | `crates/fetch` | 热点源和 RSS 抓取适配 |
 | `crates/report` | 结构化输出和后续报告层 |
+| `crates/mcp` | 最小查询型工具服务入口 |
 | `crates/app` | 编排与 CLI 入口 |
 | `docs/` | 迁移策略、架构、约束和开发日志 |
 | `fixtures/` | 系统测试样例目录 |
@@ -211,6 +213,7 @@ cargo bench --package trendradar-app --bench pipeline_bench
 ## 文档导航
 
 - [架构说明](./docs/architecture.md)
+- [性能基线](./docs/benchmark-baseline.md)
 - [环境准备](./docs/environment-setup.md)
 - [迁移策略](./docs/migration-strategy.md)
 - [实施计划](./docs/implementation-plan.md)

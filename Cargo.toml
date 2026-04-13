@@ -14,6 +14,7 @@ path = "src/lib.rs"
 
 [workspace]
 members = [
+    "crates/ai",
     "crates/domain",
     "crates/config",
     "crates/schedule",
@@ -21,6 +22,7 @@ members = [
     "crates/storage",
     "crates/fetch",
     "crates/report",
+    "crates/mcp",
     "crates/notification",
     "crates/app",
 ]
@@ -61,10 +63,12 @@ insta.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 trendradar-analyze = { path = "crates/analyze" }
+trendradar-ai = { path = "crates/ai" }
 trendradar-app = { path = "crates/app" }
 trendradar-config = { path = "crates/config" }
 trendradar-domain = { path = "crates/domain" }
 trendradar-fetch = { path = "crates/fetch" }
+trendradar-mcp = { path = "crates/mcp" }
 trendradar-report = { path = "crates/report" }
 trendradar-schedule = { path = "crates/schedule" }
 trendradar-storage = { path = "crates/storage" }
