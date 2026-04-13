@@ -33,7 +33,7 @@
 | `config` | [contracts/config.md](./contracts/config.md) | [implementation/config.md](./implementation/config.md) | `fixtures/system/config/`、`crates/app/tests/config_to_bootstrap.rs` | `cargo test -p trendradar-config` | 契约已落地，含 `schedule` 字段和 `rss_feeds`/`hotlist_apis` 源 URL 配置；Wave 5 新增 `http_timeout_secs`（默认 30s）和 `keywords`（`Vec<String>`）字段；Wave 6 新增 `notification`（`NotificationConfig`）字段 | 输出字段仍属后续扩展 |
 | `schedule` | [contracts/schedule.md](./contracts/schedule.md) | [implementation/schedule.md](./implementation/schedule.md) | `fixtures/system/config/`、`fixtures/system/schedule/`、`cargo test -p trendradar-schedule`、`cargo test -p trendradar-config` | `cargo test -p trendradar-schedule` | 已完成配置到决策映射、最小时间窗口表达与 fixture 驱动测试 | 更细粒度规则如工作日 / 冷却周期留待后续阶段 |
 | `analyze` | [contracts/analyze.md](./contracts/analyze.md) | [implementation/analyze.md](./implementation/analyze.md) | `fixtures/system/analyze/news-ranking-input.json`、`fixtures/system/analyze/source-groups-input.json`、`fixtures/system/analyze/zero-rank-input.json`、`fixtures/system/analyze/same-rank-input.json`、`cargo test -p trendradar-analyze` | `cargo test -p trendradar-analyze` | 已完成基础评分、排序、来源聚合、零排名边界与同排名 tie-break 测试；Wave 5 补齐 `filter_by_keywords()` 不区分大小写关键词过滤 | 更高阶过滤与综合排序留待后续阶段 |
-| `fetch` | [contracts/fetch.md](./contracts/fetch.md) | [implementation/fetch.md](./implementation/fetch.md) | `fixtures/system/fetch/rss-rust-blog.json`、`fixtures/system/fetch/hotlist-weibo.json`、`fixtures/system/fetch/invalid-rss.json`、`fixtures/system/fetch/empty-rss.json`、`cargo test -p trendradar-fetch`（含 mockito 隔离的 HTTP adapter 测试） | `cargo test -p trendradar-fetch` | 已完成 fixture adapter 与 HTTP adapter，含 `Network`/`Http`/`ParseResponse` 错误分类；Wave 5 补齐 `with_timeout()` 可配置超时构造器；Wave 7 新增 `HotlistParser` trait + 6 实现（Generic/Weibo/Zhihu/Bilibili/Toutiao/Baidu）+ 工厂函数 `hotlist_parser_for()` + `HttpHotlistFetcher` parser 注入 | 新平台解析器可通过实现 trait 扩展 |
+| `fetch` | [contracts/fetch.md](./contracts/fetch.md) | [implementation/fetch.md](./implementation/fetch.md) | `fixtures/system/fetch/rss-rust-blog.json`、`fixtures/system/fetch/hotlist-weibo.json`、`fixtures/system/fetch/invalid-rss.json`、`fixtures/system/fetch/empty-rss.json`、`cargo test -p trendradar-fetch`（含 mockito 隔离的 HTTP adapter 测试） | `cargo test -p trendradar-fetch` | 已完成 fixture adapter 与 HTTP adapter，含 `Network`/`Http`/`ParseResponse` 错误分类；Wave 5 补齐 `with_timeout()` 可配置超时构造器；Wave 7 新增 `HotlistParser` trait + 8 实现（Generic/Weibo/Zhihu/Bilibili/Toutiao/Baidu/Pengpai/Cls）+ 工厂函数 `hotlist_parser_for()` + `HttpHotlistFetcher` parser 注入 | 新平台解析器可通过实现 trait 扩展 |
 | `storage` | [contracts/storage.md](./contracts/storage.md) | [implementation/storage.md](./implementation/storage.md) | `fixtures/system/storage/news-roundtrip-input.json`、空仓库读取断言、`cargo test -p trendradar-storage` | `cargo test -p trendradar-storage` | 已完成 SQLite 最小实现、去重与空仓库边界测试；Wave 5 补齐文件持久化 `SqliteNewsRepository::open(path)` 及父目录自动创建 | 远程存储与 schema 迁移留待后续阶段 |
 | `report` | [contracts/report.md](./contracts/report.md) | [implementation/report.md](./implementation/report.md) | `fixtures/system/report/news-report-input.json`、空输入 JSON 断言、`cargo test -p trendradar-report` | `cargo test -p trendradar-report` | 已完成 JSON 输出与 HTML 报告；Wave 6 补齐 `render_news_html()` 自包含 HTML5 输出；Wave 7 新增 `render_news_table()` 终端彩色表格（comfy-table）和 `render_news_markdown()` GFM 表格输出 | 更多输出格式留待后续阶段 |
 | `notification` | 暂无独立契约 | 暂无独立实施文档 | `crates/notification/src/lib.rs`（tests module）、`cargo test -p trendradar-notification` | `cargo test -p trendradar-notification` | 已完成 `Notifier` trait、`WebhookNotifier`（HTTP POST JSON）、`ConsoleNotifier`（stdout）、`build_notifiers()` 工厂函数；7 条测试覆盖 | 更多通知渠道（飞书/钉钉/Telegram 等）留待后续阶段 |
@@ -213,14 +213,14 @@ Release 验证：
 Wave 7 完成 v1.1.0 首版增强，补齐 4 项高价值功能：
 
 新增 API：
-- `HotlistParser` trait + 6 实现（`GenericHotlistParser` / `WeiboHotlistParser` / `ZhihuHotlistParser` / `BilibiliHotlistParser` / `ToutiaoHotlistParser` / `BaiduHotlistParser`）
+- `HotlistParser` trait + 8 实现（`GenericHotlistParser` / `WeiboHotlistParser` / `ZhihuHotlistParser` / `BilibiliHotlistParser` / `ToutiaoHotlistParser` / `BaiduHotlistParser` / `PengpaiHotlistParser` / `ClsHotlistParser`）
 - `hotlist_parser_for(source_type)` — 工厂函数，根据配置选择解析器
 - `HttpHotlistFetcher::with_parser()` — 支持注入自定义 parser
 - `render_news_table(items, context)` — 终端彩色表格输出（comfy-table 7.1）
 - `render_news_markdown(items, context)` — GFM Markdown 表格输出
 
 新增 AppConfig 字段：
-- `hotlist_apis[].source_type: Option<String>` — 数据源类型（`"generic"` / `"weibo"` / `"zhihu"` / `"bilibili"` / `"toutiao"` / `"baidu"`，默认 `"generic"`）
+- `hotlist_apis[].source_type: Option<String>` — 数据源类型（`"generic"` / `"weibo"` / `"zhihu"` / `"bilibili"` / `"toutiao"` / `"baidu"` / `"pengpai"` / `"cls"`，默认 `"generic"`）
 
 新增 CLI 参数：
 - `--output table` — 终端彩色表格（排名前3红色高亮）

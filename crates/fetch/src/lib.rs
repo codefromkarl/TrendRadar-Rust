@@ -459,6 +459,104 @@ impl HotlistParser for BaiduHotlistParser {
     }
 }
 
+/// 澎湃热榜解析器。
+#[derive(Debug)]
+pub struct PengpaiHotlistParser;
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct PengpaiHotlistItem {
+    #[serde(rename = "contId")]
+    cont_id: String,
+    name: String,
+    #[serde(rename = "pubTimeLong")]
+    pub_time_long: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct PengpaiHotlistData {
+    #[serde(rename = "hotNews")]
+    hot_news: Vec<PengpaiHotlistItem>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PengpaiHotlistResponse {
+    data: PengpaiHotlistData,
+}
+
+impl HotlistParser for PengpaiHotlistParser {
+    fn parse(&self, raw: &str, platform_id: &str) -> Result<Vec<NewsItem>> {
+        let response: PengpaiHotlistResponse =
+            serde_json::from_str(raw).map_err(|error| FetchError::ParseResponse {
+                url: platform_id.to_owned(),
+                message: error.to_string(),
+            })?;
+
+        let items = response
+            .data
+            .hot_news
+            .into_iter()
+            .enumerate()
+            .map(|(index, item)| NewsItem {
+                title: item.name,
+                source_id: platform_id.to_owned(),
+                rank: (index + 1) as u32,
+            })
+            .collect();
+
+        Ok(items)
+    }
+}
+
+/// 财联社热门解析器。
+#[derive(Debug)]
+pub struct ClsHotlistParser;
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct ClsHotlistItem {
+    id: u64,
+    title: Option<String>,
+    brief: Option<String>,
+    shareurl: String,
+    ctime: u64,
+    is_ad: u8,
+}
+
+#[derive(Debug, Deserialize)]
+struct ClsHotlistResponse {
+    data: Vec<ClsHotlistItem>,
+}
+
+impl HotlistParser for ClsHotlistParser {
+    fn parse(&self, raw: &str, platform_id: &str) -> Result<Vec<NewsItem>> {
+        let response: ClsHotlistResponse =
+            serde_json::from_str(raw).map_err(|error| FetchError::ParseResponse {
+                url: platform_id.to_owned(),
+                message: error.to_string(),
+            })?;
+
+        let mut items = Vec::with_capacity(response.data.len());
+        for (index, item) in response.data.into_iter().enumerate() {
+            let title = item
+                .title
+                .or(item.brief)
+                .ok_or_else(|| FetchError::ParseResponse {
+                    url: platform_id.to_owned(),
+                    message: "cls item missing title and brief".to_owned(),
+                })?;
+
+            items.push(NewsItem {
+                title,
+                source_id: platform_id.to_owned(),
+                rank: (index + 1) as u32,
+            });
+        }
+
+        Ok(items)
+    }
+}
+
 /// 根据数据源类型返回对应的解析器。
 pub fn hotlist_parser_for(source_type: &str) -> Box<dyn HotlistParser> {
     match source_type {
@@ -467,6 +565,8 @@ pub fn hotlist_parser_for(source_type: &str) -> Box<dyn HotlistParser> {
         "bilibili" => Box::new(BilibiliHotlistParser),
         "toutiao" => Box::new(ToutiaoHotlistParser),
         "baidu" => Box::new(BaiduHotlistParser),
+        "pengpai" | "thepaper" => Box::new(PengpaiHotlistParser),
+        "cls" | "cls-hot" => Box::new(ClsHotlistParser),
         _ => Box::new(GenericHotlistParser),
     }
 }
@@ -632,9 +732,10 @@ fn http_get_text(client: &reqwest::blocking::Client, url: &str) -> Result<String
 #[allow(clippy::expect_used)]
 mod tests {
     use super::{
-        BaiduHotlistParser, BilibiliHotlistParser, Fetcher, FixtureHotlistFetcher,
-        FixtureRssFetcher, GenericHotlistParser, HotlistParser, HttpHotlistFetcher, HttpRssFetcher,
-        ToutiaoHotlistParser, WeiboHotlistParser, ZhihuHotlistParser, hotlist_parser_for,
+        BaiduHotlistParser, BilibiliHotlistParser, ClsHotlistParser, Fetcher,
+        FixtureHotlistFetcher, FixtureRssFetcher, GenericHotlistParser, HotlistParser,
+        HttpHotlistFetcher, HttpRssFetcher, PengpaiHotlistParser, ToutiaoHotlistParser,
+        WeiboHotlistParser, ZhihuHotlistParser, hotlist_parser_for,
     };
     use std::error::Error;
     use std::fs::read_to_string;
@@ -1266,6 +1367,124 @@ mod tests {
     }
 
     #[test]
+    fn pengpai_hotlist_parser_parses_valid_json() -> Result<(), Box<dyn Error>> {
+        let parser = PengpaiHotlistParser;
+        let raw = r#"{
+            "data": {
+                "hotNews": [
+                    {"contId": "123", "name": "澎湃热榜1", "pubTimeLong": "1710000000000"},
+                    {"contId": "456", "name": "澎湃热榜2", "pubTimeLong": "1710000000001"}
+                ]
+            }
+        }"#;
+
+        let items = parser.parse(raw, "pengpai")?;
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].title, "澎湃热榜1");
+        assert_eq!(items[0].source_id, "pengpai");
+        assert_eq!(items[0].rank, 1);
+        assert_eq!(items[1].title, "澎湃热榜2");
+        assert_eq!(items[1].rank, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn pengpai_hotlist_parser_returns_empty_for_empty_data() -> Result<(), Box<dyn Error>> {
+        let parser = PengpaiHotlistParser;
+        let raw = r#"{"data": {"hotNews": []}}"#;
+
+        let items = parser.parse(raw, "pengpai")?;
+
+        assert!(items.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn pengpai_hotlist_parser_requires_name_field() {
+        let parser = PengpaiHotlistParser;
+        let raw = r#"{
+            "data": {
+                "hotNews": [
+                    {"contId": "123", "pubTimeLong": "1710000000000"}
+                ]
+            }
+        }"#;
+
+        let error = parser
+            .parse(raw, "pengpai")
+            .expect_err("pengpai parser should reject item without name");
+
+        assert!(error.to_string().contains("failed to parse response"));
+    }
+
+    #[test]
+    fn cls_hotlist_parser_parses_valid_json() -> Result<(), Box<dyn Error>> {
+        let parser = ClsHotlistParser;
+        let raw = r#"{
+            "data": [
+                {
+                    "id": 1001,
+                    "title": "财联社热门1",
+                    "brief": "摘要1",
+                    "shareurl": "https://www.cls.cn/detail/1001",
+                    "ctime": 1710000000,
+                    "is_ad": 0
+                },
+                {
+                    "id": 1002,
+                    "brief": "财联社热门2",
+                    "shareurl": "https://www.cls.cn/detail/1002",
+                    "ctime": 1710000001,
+                    "is_ad": 0
+                }
+            ]
+        }"#;
+
+        let items = parser.parse(raw, "cls")?;
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].title, "财联社热门1");
+        assert_eq!(items[0].source_id, "cls");
+        assert_eq!(items[0].rank, 1);
+        assert_eq!(items[1].title, "财联社热门2");
+        assert_eq!(items[1].rank, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn cls_hotlist_parser_returns_empty_for_empty_data() -> Result<(), Box<dyn Error>> {
+        let parser = ClsHotlistParser;
+        let raw = r#"{"data": []}"#;
+
+        let items = parser.parse(raw, "cls")?;
+
+        assert!(items.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn cls_hotlist_parser_requires_title_or_brief() {
+        let parser = ClsHotlistParser;
+        let raw = r#"{
+            "data": [
+                {
+                    "id": 1001,
+                    "shareurl": "https://www.cls.cn/detail/1001",
+                    "ctime": 1710000000,
+                    "is_ad": 0
+                }
+            ]
+        }"#;
+
+        let error = parser
+            .parse(raw, "cls")
+            .expect_err("cls parser should reject item without title and brief");
+
+        assert!(error.to_string().contains("failed to parse response"));
+    }
+
+    #[test]
     fn hotlist_parser_for_returns_correct_parsers() {
         // 测试 weibo parser
         let weibo_parser = hotlist_parser_for("weibo");
@@ -1292,6 +1511,24 @@ mod tests {
         let baidu_parser = hotlist_parser_for("baidu");
         let baidu_raw = r#"<!--s-data:{"data":{"cards":[{"content":[{"word":"测试","rawUrl":"https://example.com/topic"}]}]}}-->"#;
         assert!(baidu_parser.parse(baidu_raw, "baidu").is_ok());
+
+        // 测试 pengpai parser
+        let pengpai_parser = hotlist_parser_for("pengpai");
+        let pengpai_raw = r#"{"data": {"hotNews": [{"contId": "1", "name": "测试", "pubTimeLong": "1710000000000"}]}}"#;
+        assert!(pengpai_parser.parse(pengpai_raw, "pengpai").is_ok());
+
+        // 测试 thepaper alias parser
+        let thepaper_parser = hotlist_parser_for("thepaper");
+        assert!(thepaper_parser.parse(pengpai_raw, "thepaper").is_ok());
+
+        // 测试 cls parser
+        let cls_parser = hotlist_parser_for("cls");
+        let cls_raw = r#"{"data": [{"id": 1, "title": "测试", "brief": "摘要", "shareurl": "https://example.com/1", "ctime": 1710000000, "is_ad": 0}]}"#;
+        assert!(cls_parser.parse(cls_raw, "cls").is_ok());
+
+        // 测试 cls-hot alias parser
+        let cls_hot_parser = hotlist_parser_for("cls-hot");
+        assert!(cls_hot_parser.parse(cls_raw, "cls-hot").is_ok());
 
         // 测试 generic parser（默认）
         let generic_parser = hotlist_parser_for("generic");

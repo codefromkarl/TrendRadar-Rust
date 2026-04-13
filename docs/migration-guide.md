@@ -29,7 +29,7 @@
 |-------------|-----------|------|
 | `hot_boards[].name` | `hotlist_apis[].platform_id` | 平台标识 |
 | `hot_boards[].url` | `hotlist_apis[].url` | API URL |
-| — | `hotlist_apis[].source_type` | 数据源类型（`"generic"`/`"weibo"`/`"zhihu"`/`"bilibili"`/`"toutiao"`/`"baidu"`，可选，默认 `"generic"`） |
+| — | `hotlist_apis[].source_type` | 数据源类型（`"generic"`/`"weibo"`/`"zhihu"`/`"bilibili"`/`"toutiao"`/`"baidu"`/`"pengpai"`/`"cls"`，可选，默认 `"generic"`） |
 | `rss_feeds[].name` | `rss_feeds[].source_id` | 订阅源标识 |
 | `rss_feeds[].url` | `rss_feeds[].url` | Feed URL |
 | `hot_boards[].platforms` | `platforms` | fixture 模式平台列表 |
