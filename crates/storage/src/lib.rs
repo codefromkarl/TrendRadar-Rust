@@ -1,6 +1,7 @@
-//! 存储抽象骨架。
+//! 存储抽象：内存与文件 SQLite 仓储。
 
 use rusqlite::{Connection, params};
+use std::path::Path;
 use trendradar_domain::TrendRadarError;
 use trendradar_domain::{NewsItem, Result};
 
@@ -25,6 +26,29 @@ impl SqliteNewsRepository {
             Connection::open_in_memory().map_err(|error| TrendRadarError::Storage {
                 message: format!("failed to open in-memory sqlite database: {error}"),
             })?;
+        let repository = Self { connection };
+        repository.initialize_schema()?;
+        Ok(repository)
+    }
+
+    /// 打开或创建文件 SQLite 仓储。
+    ///
+    /// 若文件不存在会自动创建；若已存在则复用已有数据。
+    pub fn open(path: &Path) -> Result<Self> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|error| TrendRadarError::Storage {
+                message: format!(
+                    "failed to create database directory {}: {error}",
+                    parent.display()
+                ),
+            })?;
+        }
+        let connection = Connection::open(path).map_err(|error| TrendRadarError::Storage {
+            message: format!(
+                "failed to open sqlite database at {}: {error}",
+                path.display()
+            ),
+        })?;
         let repository = Self { connection };
         repository.initialize_schema()?;
         Ok(repository)
@@ -151,6 +175,39 @@ mod tests {
         let stored = repository.list_news()?;
 
         assert!(stored.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn sqlite_repository_persists_to_file() -> Result<(), Box<dyn Error>> {
+        let dir = tempfile::tempdir()?;
+        let db_path = dir.path().join("test.db");
+
+        {
+            let mut repo = SqliteNewsRepository::open(&db_path)?;
+            repo.save_news(NewsItem {
+                title: "Persisted news".to_owned(),
+                source_id: "test".to_owned(),
+                rank: 1,
+            })?;
+        }
+
+        let repo = SqliteNewsRepository::open(&db_path)?;
+        let items = repo.list_news()?;
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].title, "Persisted news");
+        Ok(())
+    }
+
+    #[test]
+    fn sqlite_repository_creates_parent_dirs() -> Result<(), Box<dyn Error>> {
+        let dir = tempfile::tempdir()?;
+        let db_path = dir.path().join("nested").join("dir").join("test.db");
+
+        let repo = SqliteNewsRepository::open(&db_path)?;
+        let items = repo.list_news()?;
+        assert!(items.is_empty());
+        assert!(db_path.exists());
         Ok(())
     }
 }

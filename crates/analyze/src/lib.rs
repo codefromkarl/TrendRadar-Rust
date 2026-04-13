@@ -1,4 +1,4 @@
-//! 聚合与排序分析骨架。
+//! 聚合、排序与关键词过滤分析。
 
 use std::collections::BTreeMap;
 
@@ -84,9 +84,31 @@ pub fn group_news_by_source(items: &[NewsItem]) -> Vec<SourceSummary> {
     summaries
 }
 
+/// 按关键词列表过滤新闻条目（不区分大小写）。
+///
+/// 若关键词列表为空，返回全部条目（不做过滤）。
+/// 标题只需匹配任意一个关键词即保留。
+#[must_use]
+pub fn filter_by_keywords(items: &[NewsItem], keywords: &[String]) -> Vec<NewsItem> {
+    if keywords.is_empty() {
+        return items.to_vec();
+    }
+
+    let lower_keywords: Vec<String> = keywords.iter().map(|k| k.to_lowercase()).collect();
+
+    items
+        .iter()
+        .filter(|item| {
+            let lower_title = item.title.to_lowercase();
+            lower_keywords.iter().any(|kw| lower_title.contains(kw))
+        })
+        .cloned()
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{group_news_by_source, rank_news, score_news};
+    use super::{filter_by_keywords, group_news_by_source, rank_news, score_news};
     use std::error::Error;
     use std::fs::read_to_string;
     use trendradar_domain::NewsItem;
@@ -208,5 +230,85 @@ mod tests {
             ]
         );
         Ok(())
+    }
+
+    // -- Keyword filtering tests --
+
+    #[test]
+    fn filter_by_keywords_returns_all_when_keywords_empty() {
+        let items = vec![
+            NewsItem {
+                title: "Rust 1.85".to_owned(),
+                source_id: "a".to_owned(),
+                rank: 1,
+            },
+            NewsItem {
+                title: "Python 3.13".to_owned(),
+                source_id: "b".to_owned(),
+                rank: 2,
+            },
+        ];
+
+        let result = filter_by_keywords(&items, &[]);
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn filter_by_keywords_matches_case_insensitive() {
+        let items = vec![
+            NewsItem {
+                title: "Rust 1.85 Released".to_owned(),
+                source_id: "a".to_owned(),
+                rank: 1,
+            },
+            NewsItem {
+                title: "Python 3.13 Released".to_owned(),
+                source_id: "b".to_owned(),
+                rank: 2,
+            },
+        ];
+
+        let keywords = vec!["rust".to_owned()];
+        let result = filter_by_keywords(&items, &keywords);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].title, "Rust 1.85 Released");
+    }
+
+    #[test]
+    fn filter_by_keywords_matches_any_keyword() {
+        let items = vec![
+            NewsItem {
+                title: "Rust 1.85".to_owned(),
+                source_id: "a".to_owned(),
+                rank: 1,
+            },
+            NewsItem {
+                title: "Python 3.13".to_owned(),
+                source_id: "b".to_owned(),
+                rank: 2,
+            },
+            NewsItem {
+                title: "Go 1.22".to_owned(),
+                source_id: "c".to_owned(),
+                rank: 3,
+            },
+        ];
+
+        let keywords = vec!["rust".to_owned(), "go".to_owned()];
+        let result = filter_by_keywords(&items, &keywords);
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn filter_by_keywords_returns_empty_when_no_match() {
+        let items = vec![NewsItem {
+            title: "Rust 1.85".to_owned(),
+            source_id: "a".to_owned(),
+            rank: 1,
+        }];
+
+        let keywords = vec!["python".to_owned()];
+        let result = filter_by_keywords(&items, &keywords);
+        assert!(result.is_empty());
     }
 }

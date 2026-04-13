@@ -56,6 +56,9 @@ pub struct HotlistApiConfig {
     pub platform_id: String,
     /// API URL。
     pub url: String,
+    /// 热榜数据源类型，用于选择解析策略。
+    #[serde(default)]
+    pub source_type: Option<String>,
 }
 
 /// 应用配置。
@@ -75,6 +78,31 @@ pub struct AppConfig {
     /// 热榜 API 列表（HTTP 模式）。
     #[serde(default)]
     pub hotlist_apis: Vec<HotlistApiConfig>,
+    /// HTTP 请求超时秒数。
+    #[serde(default = "default_http_timeout_secs")]
+    pub http_timeout_secs: u64,
+    /// 关键词过滤列表（不区分大小写）。
+    #[serde(default)]
+    pub keywords: Vec<String>,
+    /// 通知配置。
+    #[serde(default)]
+    pub notification: NotificationConfig,
+}
+
+/// 默认 HTTP 超时 30 秒。
+const fn default_http_timeout_secs() -> u64 {
+    30
+}
+
+/// 通知配置。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct NotificationConfig {
+    /// 是否启用通知。
+    #[serde(default)]
+    pub enabled: bool,
+    /// Webhook URL。
+    #[serde(default)]
+    pub webhook_url: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -85,6 +113,9 @@ impl Default for AppConfig {
             schedule: ScheduleConfig::default(),
             rss_feeds: Vec::new(),
             hotlist_apis: Vec::new(),
+            http_timeout_secs: default_http_timeout_secs(),
+            keywords: Vec::new(),
+            notification: NotificationConfig::default(),
         }
     }
 }
@@ -145,8 +176,12 @@ pub fn load_config_from_file(path: &Path) -> Result<AppConfig> {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
-    use super::{AppConfig, ScheduleConfig, ScheduleWindowConfig, load_config_from_json_str};
+    use super::{
+        AppConfig, NotificationConfig, ScheduleConfig, ScheduleWindowConfig,
+        load_config_from_json_str,
+    };
     use std::error::Error;
     use std::fs::read_to_string;
 
@@ -195,6 +230,9 @@ mod tests {
                 },
                 rss_feeds: Vec::new(),
                 hotlist_apis: Vec::new(),
+                http_timeout_secs: 30,
+                keywords: Vec::new(),
+                notification: NotificationConfig::default(),
             }
         );
         Ok(())

@@ -4,6 +4,7 @@ use serde::Deserialize;
 use std::fs::read_to_string;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use thiserror::Error;
 use trendradar_domain::NewsItem;
 
@@ -157,8 +158,193 @@ where
 }
 
 // ---------------------------------------------------------------------------
+// Hotlist parsers（多平台热榜解析策略）
+// ---------------------------------------------------------------------------
+
+/// 热榜数据解析策略。
+pub trait HotlistParser: Send + Sync {
+    /// 将原始 JSON 文本解析为新闻条目。
+    fn parse(&self, raw: &str, platform_id: &str) -> Result<Vec<NewsItem>>;
+}
+
+/// 通用热榜解析器（原有格式）。
+#[derive(Debug)]
+pub struct GenericHotlistParser;
+
+impl HotlistParser for GenericHotlistParser {
+    fn parse(&self, raw: &str, platform_id: &str) -> Result<Vec<NewsItem>> {
+        let items: Vec<HotlistFixtureItem> =
+            serde_json::from_str(raw).map_err(|error| FetchError::ParseResponse {
+                url: platform_id.to_owned(),
+                message: error.to_string(),
+            })?;
+
+        let items = items
+            .into_iter()
+            .map(|item| NewsItem {
+                title: item.title,
+                source_id: platform_id.to_owned(),
+                rank: item.rank,
+            })
+            .collect();
+
+        Ok(items)
+    }
+}
+
+/// 微博热搜解析器。
+#[derive(Debug)]
+pub struct WeiboHotlistParser;
+
+#[derive(Debug, Deserialize)]
+struct WeiboHotlistData {
+    realtime: Vec<WeiboHotlistItem>,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct WeiboHotlistItem {
+    word: String,
+    #[serde(default)]
+    num: u64,
+}
+
+#[derive(Debug, Deserialize)]
+struct WeiboHotlistResponse {
+    data: WeiboHotlistData,
+}
+
+impl HotlistParser for WeiboHotlistParser {
+    fn parse(&self, raw: &str, platform_id: &str) -> Result<Vec<NewsItem>> {
+        let response: WeiboHotlistResponse =
+            serde_json::from_str(raw).map_err(|error| FetchError::ParseResponse {
+                url: platform_id.to_owned(),
+                message: error.to_string(),
+            })?;
+
+        let items = response
+            .data
+            .realtime
+            .into_iter()
+            .enumerate()
+            .map(|(index, item)| NewsItem {
+                title: item.word,
+                source_id: platform_id.to_owned(),
+                rank: (index + 1) as u32,
+            })
+            .collect();
+
+        Ok(items)
+    }
+}
+
+/// 知乎热榜解析器。
+#[derive(Debug)]
+pub struct ZhihuHotlistParser;
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct ZhihuHotlistItem {
+    title: String,
+    #[serde(default)]
+    detail_text: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct ZhihuHotlistResponse {
+    data: Vec<ZhihuHotlistItem>,
+}
+
+impl HotlistParser for ZhihuHotlistParser {
+    fn parse(&self, raw: &str, platform_id: &str) -> Result<Vec<NewsItem>> {
+        let response: ZhihuHotlistResponse =
+            serde_json::from_str(raw).map_err(|error| FetchError::ParseResponse {
+                url: platform_id.to_owned(),
+                message: error.to_string(),
+            })?;
+
+        let items = response
+            .data
+            .into_iter()
+            .enumerate()
+            .map(|(index, item)| NewsItem {
+                title: item.title,
+                source_id: platform_id.to_owned(),
+                rank: (index + 1) as u32,
+            })
+            .collect();
+
+        Ok(items)
+    }
+}
+
+/// B站热榜解析器。
+#[derive(Debug)]
+pub struct BilibiliHotlistParser;
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct BilibiliHotlistItem {
+    title: String,
+    #[serde(default)]
+    hot_value: u64,
+}
+
+#[derive(Debug, Deserialize)]
+struct BilibiliHotlistData {
+    list: Vec<BilibiliHotlistItem>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BilibiliHotlistResponse {
+    data: BilibiliHotlistData,
+}
+
+impl HotlistParser for BilibiliHotlistParser {
+    fn parse(&self, raw: &str, platform_id: &str) -> Result<Vec<NewsItem>> {
+        let response: BilibiliHotlistResponse =
+            serde_json::from_str(raw).map_err(|error| FetchError::ParseResponse {
+                url: platform_id.to_owned(),
+                message: error.to_string(),
+            })?;
+
+        let items = response
+            .data
+            .list
+            .into_iter()
+            .enumerate()
+            .map(|(index, item)| NewsItem {
+                title: item.title,
+                source_id: platform_id.to_owned(),
+                rank: (index + 1) as u32,
+            })
+            .collect();
+
+        Ok(items)
+    }
+}
+
+/// 根据数据源类型返回对应的解析器。
+pub fn hotlist_parser_for(source_type: &str) -> Box<dyn HotlistParser> {
+    match source_type {
+        "weibo" => Box::new(WeiboHotlistParser),
+        "zhihu" => Box::new(ZhihuHotlistParser),
+        "bilibili" => Box::new(BilibiliHotlistParser),
+        _ => Box::new(GenericHotlistParser),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // HTTP adapters
 // ---------------------------------------------------------------------------
+
+/// 构建带超时的 reqwest blocking Client。
+fn build_http_client(timeout: Duration) -> reqwest::blocking::Client {
+    reqwest::blocking::Client::builder()
+        .timeout(timeout)
+        .build()
+        .unwrap_or_else(|_| reqwest::blocking::Client::new())
+}
 
 /// 基于 HTTP 的 RSS 抓取器。
 ///
@@ -170,13 +356,23 @@ pub struct HttpRssFetcher {
 }
 
 impl HttpRssFetcher {
-    /// 创建 HTTP RSS 抓取器。
+    /// 创建 HTTP RSS 抓取器（默认 30 秒超时）。
     #[must_use]
     pub fn new(source_id: impl Into<String>, url: impl Into<String>) -> Self {
+        Self::with_timeout(source_id, url, Duration::from_secs(30))
+    }
+
+    /// 创建带自定义超时的 HTTP RSS 抓取器。
+    #[must_use]
+    pub fn with_timeout(
+        source_id: impl Into<String>,
+        url: impl Into<String>,
+        timeout: Duration,
+    ) -> Self {
         Self {
             source_id: source_id.into(),
             url: url.into(),
-            client: reqwest::blocking::Client::new(),
+            client: build_http_client(timeout),
         }
     }
 }
@@ -215,16 +411,44 @@ pub struct HttpHotlistFetcher {
     platform_id: String,
     url: String,
     client: reqwest::blocking::Client,
+    parser: Box<dyn HotlistParser>,
 }
 
 impl HttpHotlistFetcher {
-    /// 创建 HTTP 热榜抓取器。
+    /// 创建 HTTP 热榜抓取器（默认 30 秒超时，使用通用解析器）。
     #[must_use]
     pub fn new(platform_id: impl Into<String>, url: impl Into<String>) -> Self {
+        Self::with_timeout(platform_id, url, Duration::from_secs(30))
+    }
+
+    /// 创建带自定义超时的 HTTP 热榜抓取器（使用通用解析器）。
+    #[must_use]
+    pub fn with_timeout(
+        platform_id: impl Into<String>,
+        url: impl Into<String>,
+        timeout: Duration,
+    ) -> Self {
         Self {
             platform_id: platform_id.into(),
             url: url.into(),
-            client: reqwest::blocking::Client::new(),
+            client: build_http_client(timeout),
+            parser: Box::new(GenericHotlistParser),
+        }
+    }
+
+    /// 创建带自定义解析器的 HTTP 热榜抓取器。
+    #[must_use]
+    pub fn with_parser(
+        platform_id: impl Into<String>,
+        url: impl Into<String>,
+        timeout: Duration,
+        parser: Box<dyn HotlistParser>,
+    ) -> Self {
+        Self {
+            platform_id: platform_id.into(),
+            url: url.into(),
+            client: build_http_client(timeout),
+            parser,
         }
     }
 }
@@ -232,23 +456,7 @@ impl HttpHotlistFetcher {
 impl Fetcher for HttpHotlistFetcher {
     fn fetch(&self) -> Result<Vec<NewsItem>> {
         let body = http_get_text(&self.client, &self.url)?;
-
-        let items: Vec<HotlistFixtureItem> =
-            serde_json::from_str(&body).map_err(|error| FetchError::ParseResponse {
-                url: self.url.clone(),
-                message: error.to_string(),
-            })?;
-
-        let items = items
-            .into_iter()
-            .map(|item| NewsItem {
-                title: item.title,
-                source_id: self.platform_id.clone(),
-                rank: item.rank,
-            })
-            .collect();
-
-        Ok(items)
+        self.parser.parse(&body, &self.platform_id)
     }
 }
 
@@ -284,12 +492,16 @@ fn http_get_text(client: &reqwest::blocking::Client, url: &str) -> Result<String
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::{
-        Fetcher, FixtureHotlistFetcher, FixtureRssFetcher, HttpHotlistFetcher, HttpRssFetcher,
+        BilibiliHotlistParser, Fetcher, FixtureHotlistFetcher, FixtureRssFetcher,
+        GenericHotlistParser, HotlistParser, HttpHotlistFetcher, HttpRssFetcher,
+        WeiboHotlistParser, ZhihuHotlistParser, hotlist_parser_for,
     };
     use std::error::Error;
     use std::fs::read_to_string;
+    use std::time::Duration;
     use trendradar_config::load_config_from_json_str;
 
     // -- Fixture adapter tests (已有) --
@@ -571,6 +783,287 @@ mod tests {
             message.contains("network error"),
             "expected network error in: {message}"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn http_fetcher_with_custom_timeout_uses_configured_duration() -> Result<(), Box<dyn Error>> {
+        // Short timeout should trigger network error for slow server
+        let fetcher = HttpHotlistFetcher::with_timeout(
+            "slow",
+            "http://127.0.0.1:1/hotlist",
+            Duration::from_millis(1),
+        );
+        let error = fetcher
+            .fetch()
+            .expect_err("should fail on unreachable host");
+
+        assert!(
+            error.to_string().contains("network error"),
+            "expected network error"
+        );
+        Ok(())
+    }
+
+    // -- Parser tests --
+
+    #[test]
+    fn generic_hotlist_parser_parses_valid_json() -> Result<(), Box<dyn Error>> {
+        let parser = GenericHotlistParser;
+        let raw = r#"[{"title":"Breaking news","rank":1},{"title":"Tech update","rank":2}]"#;
+
+        let items = parser.parse(raw, "test-platform")?;
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].title, "Breaking news");
+        assert_eq!(items[0].source_id, "test-platform");
+        assert_eq!(items[0].rank, 1);
+        assert_eq!(items[1].title, "Tech update");
+        assert_eq!(items[1].rank, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn generic_hotlist_parser_returns_empty_for_empty_array() -> Result<(), Box<dyn Error>> {
+        let parser = GenericHotlistParser;
+        let raw = r#"[]"#;
+
+        let items = parser.parse(raw, "empty-platform")?;
+
+        assert!(items.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn generic_hotlist_parser_reports_error_for_invalid_json() -> Result<(), Box<dyn Error>> {
+        let parser = GenericHotlistParser;
+        let raw = r#"not json"#;
+
+        let error = parser
+            .parse(raw, "bad-platform")
+            .expect_err("should fail on invalid JSON");
+
+        let message = error.to_string();
+        assert!(
+            message.contains("failed to parse response"),
+            "expected parse error in: {message}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn weibo_hotlist_parser_parses_valid_json() -> Result<(), Box<dyn Error>> {
+        let parser = WeiboHotlistParser;
+        let raw = r#"{
+            "data": {
+                "realtime": [
+                    {"word": "热搜话题1", "num": 1234567},
+                    {"word": "热搜话题2", "num": 234567}
+                ]
+            }
+        }"#;
+
+        let items = parser.parse(raw, "weibo")?;
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].title, "热搜话题1");
+        assert_eq!(items[0].source_id, "weibo");
+        assert_eq!(items[0].rank, 1);
+        assert_eq!(items[1].title, "热搜话题2");
+        assert_eq!(items[1].rank, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn weibo_hotlist_parser_returns_empty_for_empty_data() -> Result<(), Box<dyn Error>> {
+        let parser = WeiboHotlistParser;
+        let raw = r#"{"data": {"realtime": []}}"#;
+
+        let items = parser.parse(raw, "weibo")?;
+
+        assert!(items.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn weibo_hotlist_parser_handles_missing_fields_gracefully() -> Result<(), Box<dyn Error>> {
+        let parser = WeiboHotlistParser;
+        // 缺失 num 字段时使用默认值
+        let raw = r#"{
+            "data": {
+                "realtime": [
+                    {"word": "话题1"}
+                ]
+            }
+        }"#;
+
+        let items = parser.parse(raw, "weibo")?;
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].title, "话题1");
+        Ok(())
+    }
+
+    #[test]
+    fn zhihu_hotlist_parser_parses_valid_json() -> Result<(), Box<dyn Error>> {
+        let parser = ZhihuHotlistParser;
+        let raw = r#"{
+            "data": [
+                {"title": "知乎问题1", "detail_text": "100万热度"},
+                {"title": "知乎问题2", "detail_text": "50万热度"}
+            ]
+        }"#;
+
+        let items = parser.parse(raw, "zhihu")?;
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].title, "知乎问题1");
+        assert_eq!(items[0].source_id, "zhihu");
+        assert_eq!(items[0].rank, 1);
+        assert_eq!(items[1].title, "知乎问题2");
+        assert_eq!(items[1].rank, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn zhihu_hotlist_parser_returns_empty_for_empty_data() -> Result<(), Box<dyn Error>> {
+        let parser = ZhihuHotlistParser;
+        let raw = r#"{"data": []}"#;
+
+        let items = parser.parse(raw, "zhihu")?;
+
+        assert!(items.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn zhihu_hotlist_parser_handles_missing_detail_text() -> Result<(), Box<dyn Error>> {
+        let parser = ZhihuHotlistParser;
+        let raw = r#"{
+            "data": [
+                {"title": "问题1"}
+            ]
+        }"#;
+
+        let items = parser.parse(raw, "zhihu")?;
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].title, "问题1");
+        Ok(())
+    }
+
+    #[test]
+    fn bilibili_hotlist_parser_parses_valid_json() -> Result<(), Box<dyn Error>> {
+        let parser = BilibiliHotlistParser;
+        let raw = r#"{
+            "data": {
+                "list": [
+                    {"title": "B站视频1", "hot_value": 5000000},
+                    {"title": "B站视频2", "hot_value": 3000000}
+                ]
+            }
+        }"#;
+
+        let items = parser.parse(raw, "bilibili")?;
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].title, "B站视频1");
+        assert_eq!(items[0].source_id, "bilibili");
+        assert_eq!(items[0].rank, 1);
+        assert_eq!(items[1].title, "B站视频2");
+        assert_eq!(items[1].rank, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn bilibili_hotlist_parser_returns_empty_for_empty_data() -> Result<(), Box<dyn Error>> {
+        let parser = BilibiliHotlistParser;
+        let raw = r#"{"data": {"list": []}}"#;
+
+        let items = parser.parse(raw, "bilibili")?;
+
+        assert!(items.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn bilibili_hotlist_parser_handles_missing_hot_value() -> Result<(), Box<dyn Error>> {
+        let parser = BilibiliHotlistParser;
+        let raw = r#"{
+            "data": {
+                "list": [
+                    {"title": "视频1"}
+                ]
+            }
+        }"#;
+
+        let items = parser.parse(raw, "bilibili")?;
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].title, "视频1");
+        Ok(())
+    }
+
+    #[test]
+    fn hotlist_parser_for_returns_correct_parsers() {
+        // 测试 weibo parser
+        let weibo_parser = hotlist_parser_for("weibo");
+        let weibo_raw = r#"{"data": {"realtime": [{"word": "测试", "num": 100}]}}"#;
+        assert!(weibo_parser.parse(weibo_raw, "weibo").is_ok());
+
+        // 测试 zhihu parser
+        let zhihu_parser = hotlist_parser_for("zhihu");
+        let zhihu_raw = r#"{"data": [{"title": "测试"}]}"#;
+        assert!(zhihu_parser.parse(zhihu_raw, "zhihu").is_ok());
+
+        // 测试 bilibili parser
+        let bilibili_parser = hotlist_parser_for("bilibili");
+        let bilibili_raw = r#"{"data": {"list": [{"title": "测试"}]}}"#;
+        assert!(bilibili_parser.parse(bilibili_raw, "bilibili").is_ok());
+
+        // 测试 generic parser（默认）
+        let generic_parser = hotlist_parser_for("generic");
+        let generic_raw = r#"[{"title": "测试", "rank": 1}]"#;
+        assert!(generic_parser.parse(generic_raw, "generic").is_ok());
+
+        // 测试未知类型默认为 generic
+        let unknown_parser = hotlist_parser_for("unknown");
+        assert!(unknown_parser.parse(generic_raw, "unknown").is_ok());
+    }
+
+    #[test]
+    fn http_hotlist_fetcher_with_parser_uses_custom_parser() -> Result<(), Box<dyn Error>> {
+        let mut server = mockito::Server::new();
+        let body = r#"{
+            "data": {
+                "realtime": [
+                    {"word": "微博热搜1", "num": 1000000},
+                    {"word": "微博热搜2", "num": 500000}
+                ]
+            }
+        }"#;
+
+        let mock = server
+            .mock("GET", "/weibo")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(body)
+            .create();
+
+        let url = format!("{}/weibo", server.url());
+        let parser = Box::new(WeiboHotlistParser);
+        let fetcher =
+            HttpHotlistFetcher::with_parser("weibo", &url, Duration::from_secs(30), parser);
+        let items = fetcher.fetch()?;
+
+        mock.assert();
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].title, "微博热搜1");
+        assert_eq!(items[0].source_id, "weibo");
+        assert_eq!(items[0].rank, 1);
+        assert_eq!(items[1].title, "微博热搜2");
+        assert_eq!(items[1].rank, 2);
         Ok(())
     }
 }
