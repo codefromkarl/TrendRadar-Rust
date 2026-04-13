@@ -24,3 +24,6 @@ mod large_input_stability;
 
 #[path = "system/http_resilient_recovery.rs"]
 mod http_resilient_recovery;
+
+#[path = "system/large_output_consistency.rs"]
+mod large_output_consistency;
