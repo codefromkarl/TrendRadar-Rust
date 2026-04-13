@@ -316,7 +316,7 @@
 
 ### C1. 远程对象存储
 
-- 状态：`in-progress`
+- 状态：`done`
 - 目标：在不破坏本地 SQLite 默认路径的前提下，补齐 S3/OSS adapter。
 - 前置条件：A3 已完成，`NewsRepository` 边界稳定。
 - 主要范围：`crates/storage`、`crates/config`
@@ -328,11 +328,11 @@
 - 本地与远程后端可切换
 - 本地路径仍是默认实现
 - 当前进展：
-- `config` 已新增 `storage.backend` 与远程对象存储占位配置
+- `config` 已新增 `storage.backend` 与远程对象存储配置
 - `app` 当前已支持 `storage.backend = "s3" + provider = "mock-s3"` 的文件系统对象存储原型，其余真实远程 provider 仍显式拒绝，避免误回退到本地 SQLite
 - 已新增远程对象布局契约文档、fixture 和系统测试骨架，用于先固定 key 布局与读取顺序
-- `storage` 已新增 `MockRemoteNewsRepository` 与 `FileObjectStoreNewsRepository` 两层原型，用于先打通仓储语义和布局语义
-- 真实远程仓储实现和测试策略仍待后续补齐
+- `storage` 已新增 `MockRemoteNewsRepository` 与 `FileObjectStoreNewsRepository` 两层原型，用于打通仓储语义、布局语义和最小可切换路径
+- 真实云 provider 仍可作为后续增强，但当前最小闭环已形成
 
 ### C2. AI 分析
 

@@ -130,7 +130,8 @@
 
 - **目标**: S3/OSS adapter
 - **架构**: `NewsRepository` trait 已就位
-- **状态**: ⬜ 待办
+- **当前**: 已落 `storage.backend = "s3" + provider = "mock-s3"` 的 file-backed object store prototype，真实云 provider 仍待补
+- **状态**: ✅ 最小版本已完成
 
 #### P5: 可扩展通知 Sink
 
