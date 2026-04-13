@@ -90,6 +90,48 @@ pub struct HotlistApiConfig {
     pub source_type: Option<String>,
 }
 
+/// 存储后端类型。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum StorageBackend {
+    /// 本地 SQLite。
+    #[default]
+    Sqlite,
+    /// 远程对象存储（预留）。
+    S3,
+}
+
+/// 远程对象存储配置（预留）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct RemoteStorageConfig {
+    /// 提供方标识，例如 `s3` / `oss`。
+    #[serde(default)]
+    pub provider: Option<String>,
+    /// 远程 bucket 名称。
+    #[serde(default)]
+    pub bucket: Option<String>,
+    /// 可选 endpoint。
+    #[serde(default)]
+    pub endpoint: Option<String>,
+    /// 可选 region。
+    #[serde(default)]
+    pub region: Option<String>,
+    /// 可选对象前缀。
+    #[serde(default)]
+    pub prefix: Option<String>,
+}
+
+/// 存储配置。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct StorageConfig {
+    /// 存储后端类型。
+    #[serde(default)]
+    pub backend: StorageBackend,
+    /// 远程对象存储配置（预留）。
+    #[serde(default)]
+    pub remote: Option<RemoteStorageConfig>,
+}
+
 /// 应用配置。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -110,6 +152,9 @@ pub struct AppConfig {
     /// HTTP 请求超时秒数。
     #[serde(default = "default_http_timeout_secs")]
     pub http_timeout_secs: u64,
+    /// 存储配置。
+    #[serde(default)]
+    pub storage: StorageConfig,
     /// 关键词过滤列表（不区分大小写）。
     #[serde(default)]
     pub keywords: Vec<String>,
@@ -152,6 +197,7 @@ impl Default for AppConfig {
             rss_feeds: Vec::new(),
             hotlist_apis: Vec::new(),
             http_timeout_secs: default_http_timeout_secs(),
+            storage: StorageConfig::default(),
             keywords: Vec::new(),
             notification: NotificationConfig::default(),
         }
@@ -229,8 +275,8 @@ pub fn load_config_from_file(path: &Path) -> Result<AppConfig> {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::{
-        AppConfig, NotificationConfig, ScheduleConfig, ScheduleWindowConfig,
-        load_config_from_json_str,
+        AppConfig, NotificationConfig, RemoteStorageConfig, ScheduleConfig, ScheduleWindowConfig,
+        StorageBackend, StorageConfig, load_config_from_json_str,
     };
     use std::error::Error;
     use std::fs::read_to_string;
@@ -284,6 +330,7 @@ mod tests {
                 rss_feeds: Vec::new(),
                 hotlist_apis: Vec::new(),
                 http_timeout_secs: 30,
+                storage: StorageConfig::default(),
                 keywords: Vec::new(),
                 notification: NotificationConfig::default(),
             }
@@ -370,6 +417,38 @@ mod tests {
         assert!(config.platforms.is_empty());
         assert!(config.rss_feeds.is_empty());
         assert!(config.hotlist_apis.is_empty());
+        assert_eq!(config.storage, StorageConfig::default());
+        Ok(())
+    }
+
+    #[test]
+    fn remote_storage_config_loads_from_json() -> Result<(), Box<dyn Error>> {
+        let input = r#"{
+            "timezone":"Asia/Shanghai",
+            "storage":{
+                "backend":"s3",
+                "remote":{
+                    "provider":"s3",
+                    "bucket":"trendradar-artifacts",
+                    "endpoint":"https://storage.example.com",
+                    "region":"cn-hangzhou",
+                    "prefix":"daily/"
+                }
+            }
+        }"#;
+        let config = load_config_from_json_str(input)?;
+
+        assert_eq!(config.storage.backend, StorageBackend::S3);
+        assert_eq!(
+            config.storage.remote,
+            Some(RemoteStorageConfig {
+                provider: Some("s3".to_owned()),
+                bucket: Some("trendradar-artifacts".to_owned()),
+                endpoint: Some("https://storage.example.com".to_owned()),
+                region: Some("cn-hangzhou".to_owned()),
+                prefix: Some("daily/".to_owned()),
+            })
+        );
         Ok(())
     }
 

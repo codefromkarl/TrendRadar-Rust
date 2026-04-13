@@ -316,7 +316,7 @@
 
 ### C1. 远程对象存储
 
-- 状态：`todo`
+- 状态：`in-progress`
 - 目标：在不破坏本地 SQLite 默认路径的前提下，补齐 S3/OSS adapter。
 - 前置条件：A3 已完成，`NewsRepository` 边界稳定。
 - 主要范围：`crates/storage`、`crates/config`
@@ -327,6 +327,10 @@
 - 完成标准：
 - 本地与远程后端可切换
 - 本地路径仍是默认实现
+- 当前进展：
+- `config` 已新增 `storage.backend` 与远程对象存储占位配置
+- `app` 已在边界层显式拒绝尚未实现的 `s3` 后端，避免误回退到本地 SQLite
+- 真实远程仓储实现和测试策略仍待后续补齐
 
 ### C2. AI 分析
 

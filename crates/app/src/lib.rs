@@ -10,7 +10,9 @@ use tracing::{debug, info, warn};
 use trendradar_analyze::{
     RankedNews, SourceSummary, filter_by_keywords, group_news_by_source, rank_news,
 };
-use trendradar_config::{AppConfig, load_default_config, validate_config};
+use trendradar_config::{
+    AppConfig, StorageBackend, StorageConfig, load_default_config, validate_config,
+};
 use trendradar_domain::{NewsItem, RunContext};
 use trendradar_fetch::{
     Fetcher, FixtureHotlistFetcher, FixtureRssFetcher, HttpHotlistFetcher, HttpRssFetcher,
@@ -232,12 +234,19 @@ fn run_pipeline_with_fetchers(
     };
 
     // -- Store --
-    let mut repository = match db_path {
-        Some(path) => {
-            info!(path = %path.display(), "opening file database");
-            SqliteNewsRepository::open(path)?
+    let mut repository = match config.storage.backend {
+        StorageBackend::Sqlite => match db_path {
+            Some(path) => {
+                info!(path = %path.display(), "opening file database");
+                SqliteNewsRepository::open(path)?
+            }
+            None => SqliteNewsRepository::in_memory()?,
+        },
+        StorageBackend::S3 => {
+            return Err(anyhow::anyhow!(
+                "remote storage backend s3 is not implemented yet"
+            ));
         }
-        None => SqliteNewsRepository::in_memory()?,
     };
     repository.save_news_batch(&filtered_items)?;
     let stored_items = repository.list_news()?;
@@ -611,7 +620,9 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
-    use trendradar_config::{AppConfig, NotificationConfig, ScheduleConfig};
+    use trendradar_config::{
+        AppConfig, NotificationConfig, ScheduleConfig, StorageBackend, StorageConfig,
+    };
     use trendradar_domain::NewsItem;
     use trendradar_fetch::{FetchError, Fetcher};
 
@@ -664,6 +675,7 @@ mod tests {
             rss_feeds: Vec::new(),
             hotlist_apis: Vec::new(),
             http_timeout_secs: 5,
+            storage: StorageConfig::default(),
             keywords: Vec::new(),
             notification: NotificationConfig::default(),
         }
@@ -885,5 +897,29 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(base_dir);
         Ok(())
+    }
+
+    #[test]
+    fn remote_storage_backend_is_rejected_until_implemented() {
+        let fetchers: Vec<Box<dyn Fetcher>> = Vec::new();
+        let mut config = test_config();
+        config.storage.backend = StorageBackend::S3;
+
+        let error = run_pipeline_with_fetchers(
+            &config,
+            chrono::Utc::now(),
+            &fetchers,
+            None,
+            true,
+            true,
+            OutputMode::All,
+        )
+        .expect_err("remote storage should be rejected until implemented");
+
+        assert!(
+            error
+                .to_string()
+                .contains("remote storage backend s3 is not implemented yet")
+        );
     }
 }

@@ -33,6 +33,8 @@
 
 - 首版后端：
   SQLite
+- 远程后端：
+  当前只预留配置与切换边界，尚未实现真实 S3/OSS adapter
 - 连接与初始化方式：
   `SqliteNewsRepository::in_memory()` 用于测试与最小闭环
 - schema 管理方式：
@@ -62,3 +64,4 @@
 
 - `NewsItem` 与 `RssItem` 是否共表或分表
 - schema 迁移是否在首版纳入范围
+- 远程对象存储的对象布局、读取语义和失败回退策略

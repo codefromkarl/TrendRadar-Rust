@@ -18,6 +18,7 @@
 - 已收敛仓储 trait
 - 已实现 SQLite 最小实现
 - 已补固定 fixture 测试
+- 已预留远程对象存储配置与应用边界
 
 ## 暂不处理
 
@@ -41,6 +42,8 @@
 - 已提供 `SqliteNewsRepository::in_memory()`
 - 已固定 `(source_id, title)` 去重并保留更优 `rank`
 - 已补空仓库边界断言，固定初始读取结果为空集合
+- `AppConfig.storage.backend` 已预留 `sqlite / s3` 切换位
+- `app` 当前对 `s3` 后端会明确报 “not implemented yet”，避免默默退回本地 SQLite
 - 真实文件数据库路径与迁移框架仍留待后续阶段
 
 ## 验证命令
