@@ -123,6 +123,47 @@ cargo check --workspace --all-targets
 - `docs(status): calibrate roadmap and active docs`
 - `migration(fetch): add toutiao and baidu hotlist parsers`
 
+## Pull Request 建议流程
+
+如果你通过 PR 贡献，建议按下面顺序整理：
+
+1. 在 PR 描述里写清 `Why / What / Verify`
+2. 明确本次改动只解决一个主题
+3. 列出受影响的 crate、脚本和文档
+4. 标出是否新增了 fixture、系统测试或开发日志
+5. 如果有未完成项，写清它们为什么不在本次范围
+
+推荐在 PR 描述中至少包含：
+
+```text
+Why:
+- 为什么需要这次改动
+
+What:
+- 改了什么
+
+Verify:
+- 跑了哪些命令
+```
+
+## 提交前自查清单
+
+提交前建议逐项确认：
+
+- 改动范围是否仍然单主题
+- `just verify-basic` 是否通过
+- 是否需要同步 `README.md`、`docs/roadmap.md`、`docs/acceptance-matrix.md`
+- 是否需要补 `docs/dev-journal/`
+- 是否有未跟踪本地文件不应被带入提交
+
+如果你改了下面这些内容，建议额外复查：
+
+- `Cargo.toml` / workspace 结构
+- CLI 参数
+- fixture 目录
+- 系统测试入口
+- 路线图或执行状态
+
 ## 测试与 fixture 约定
 
 - crate 内测试优先放在各 crate 自己的 `src/` 或 `tests/`
@@ -153,6 +194,12 @@ cargo check --workspace --all-targets
 - 完成一个成组任务
 - 做了重要取舍
 - 需要给后续开发留明确提醒
+
+推荐做法：
+
+- 日志只负责自己的提交或阶段，不混写无关主题
+- 写“今日进度”前先对一遍 `git log --since='<当天 00:00>'`
+- 如果同一天存在多个主题，优先拆成多篇独立日志
 
 ## 交流方式
 
