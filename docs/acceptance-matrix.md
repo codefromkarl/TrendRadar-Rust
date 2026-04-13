@@ -115,8 +115,8 @@
 - `fetch`：RSS / 热榜的正常、空输入、非法 fixture 路径，以及部分抓取成功后的整体中断语义；HTTP adapter 已补 `HttpRssFetcher` 和 `HttpHotlistFetcher`，含 mockito 隔离的正常解析、空 channel/数组、HTTP 错误、XML/JSON 解析错误、网络不可达共 10 条测试
 - `storage`：空仓库初始读取、去重后进入报告、相同 rank 重复写入仍去重、同标题不同来源在相同 rank 下仍保留分离、乱序写入后稳定排序、同 rank 时按 `source_id + title` 稳定排序
 - `report`：空输入 JSON 结构
-- `app`：根级系统层已覆盖最小正向全链路、空来源全链路、单来源全链路、RSS-only 全链路、hotlist-only 全链路、跨午夜窗口内放行 / 窗口外阻断全链路，以及 `collect=false` 时跳过损坏 source、窗口阻断时跳过损坏 source、`collect-only` 时仍传播损坏 source 错误、窗口放行时仍传播损坏 source 错误的路径和 8 个阶段布尔组合、窗口内放行 / 窗口外阻断路径；crate 级 `wave4_http_pipeline` 还补齐了 HTTP 混合成功/失败恢复和新平台 payload 跳过场景，`crates/app` 内部测试还补齐了并发抓取下多失败源与稳定 retained results 场景，根级系统测试还新增了大输入稳定性与慢源/失败源恢复场景
-- 根级 `tests/system/`：当前共有 66 条系统测试，已覆盖 `config_schedule_errors`、`fetch_to_domain`、`fetch_to_analyze`、`analyze_pipeline`、`storage_to_report`、`app_pipeline_modes`，以及大输入稳定性、慢源/失败源恢复、多格式输出一致性和远程对象布局契约骨架
+- `app`：根级系统层已覆盖最小正向全链路、空来源全链路、单来源全链路、RSS-only 全链路、hotlist-only 全链路、跨午夜窗口内放行 / 窗口外阻断全链路，以及 `collect=false` 时跳过损坏 source、窗口阻断时跳过损坏 source、`collect-only` 时仍传播损坏 source 错误、窗口放行时仍传播损坏 source 错误的路径和 8 个阶段布尔组合、窗口内放行 / 窗口外阻断路径；crate 级 `wave4_http_pipeline` 还补齐了 HTTP 混合成功/失败恢复和新平台 payload 跳过场景，`crates/app` 内部测试还补齐了并发抓取下多失败源与稳定 retained results 场景，根级系统测试还新增了大输入稳定性、慢源/失败源恢复，以及复杂并发慢源/多失败源下的多格式输出稳定性场景
+- 根级 `tests/system/`：当前共有 67 条系统测试，已覆盖 `config_schedule_errors`、`fetch_to_domain`、`fetch_to_analyze`、`analyze_pipeline`、`storage_to_report`、`app_pipeline_modes`，以及大输入稳定性、慢源/失败源恢复、多格式输出一致性和远程对象布局契约骨架
 - 根级 `tests/system/app_pipeline_modes.rs`：已覆盖最小正向全链路、空来源全链路、单来源全链路、RSS-only 全链路、hotlist-only 全链路、跨午夜窗口内放行 / 窗口外阻断全链路、`collect=false` 时跳过损坏 source、窗口阻断时跳过损坏 source、`collect-only` 时仍传播损坏 source 错误、窗口放行时仍传播损坏 source 错误的路径、8 个 `collect/analyze/push` 布尔组合和窗口内放行 / 窗口外阻断
 
 当前结论：
