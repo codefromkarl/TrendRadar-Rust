@@ -134,6 +134,7 @@ just doc
 - [环境准备](./docs/environment-setup.md)
 - [迁移策略](./docs/migration-strategy.md)
 - [实施计划](./docs/implementation-plan.md)
+- [后续拓展执行文档](./docs/extension-execution-plan.md)
 - [并行迁移总方案](./docs/parallel-migration-plan.md)
 - [契约文档目录](./docs/contracts/README.md)
 - [实施文档目录](./docs/implementation/README.md)

@@ -4,10 +4,39 @@ use std::path::PathBuf;
 use std::process;
 
 use chrono::Utc;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use tracing_subscriber::EnvFilter;
-use trendradar_app::{default_db_path, resolve_config_path, run_config_pipeline};
+use trendradar_app::{
+    OutputMode, default_db_path, resolve_config_path, run_config_pipeline_with_output,
+};
 use trendradar_config::load_config_from_file;
+
+/// CLI 输出格式。
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum CliOutputFormat {
+    /// JSON 输出。
+    Json,
+    /// HTML 输出。
+    Html,
+    /// JSON + HTML 双输出。
+    Both,
+    /// 终端表格输出。
+    Table,
+    /// Markdown 输出。
+    Markdown,
+}
+
+impl From<CliOutputFormat> for OutputMode {
+    fn from(value: CliOutputFormat) -> Self {
+        match value {
+            CliOutputFormat::Json => Self::Json,
+            CliOutputFormat::Html => Self::Html,
+            CliOutputFormat::Both => Self::Both,
+            CliOutputFormat::Table => Self::Table,
+            CliOutputFormat::Markdown => Self::Markdown,
+        }
+    }
+}
 
 /// TrendRadar — 热榜与 RSS 聚合雷达。
 #[derive(Debug, Parser)]
@@ -22,8 +51,8 @@ struct Cli {
     db: Option<PathBuf>,
 
     /// 输出格式：json / html / both / table / markdown。
-    #[arg(short, long = "output", default_value = "json")]
-    output: String,
+    #[arg(short, long = "output", value_enum, default_value_t = CliOutputFormat::Json)]
+    output: CliOutputFormat,
 
     /// 详细日志输出。
     #[arg(short, long = "verbose")]
@@ -92,30 +121,35 @@ fn main() {
 
     // -- 执行 pipeline --
     let started_at = Utc::now();
-    match run_config_pipeline(&config, started_at, db_path.as_deref()) {
+    match run_config_pipeline_with_output(
+        &config,
+        started_at,
+        db_path.as_deref(),
+        cli.output.into(),
+    ) {
         Ok(result) => {
             tracing::info!(
                 collected = result.collected_items.len(),
                 stored = result.stored_items.len(),
                 "pipeline completed"
             );
-            match cli.output.as_str() {
-                "html" => {
+            match cli.output {
+                CliOutputFormat::Html => {
                     if let Some(html) = &result.report_html {
                         println!("{html}");
                     }
                 }
-                "table" => {
+                CliOutputFormat::Table => {
                     if let Some(table) = &result.report_table {
                         println!("{table}");
                     }
                 }
-                "markdown" => {
+                CliOutputFormat::Markdown => {
                     if let Some(markdown) = &result.report_markdown {
                         println!("{markdown}");
                     }
                 }
-                "both" => {
+                CliOutputFormat::Both => {
                     if let Some(json) = &result.report_json {
                         println!("{json}");
                     }
@@ -123,7 +157,7 @@ fn main() {
                         eprintln!("\n--- HTML Report ---\n{html}");
                     }
                 }
-                _ => {
+                CliOutputFormat::Json => {
                     if let Some(json) = &result.report_json {
                         println!("{json}");
                     }

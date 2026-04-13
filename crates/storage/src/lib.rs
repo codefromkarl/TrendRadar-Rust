@@ -10,6 +10,14 @@ pub trait NewsRepository {
     /// 保存一条新闻。
     fn save_news(&mut self, item: NewsItem) -> Result<()>;
 
+    /// 批量保存多条新闻。
+    fn save_news_batch(&mut self, items: &[NewsItem]) -> Result<()> {
+        for item in items {
+            self.save_news(item.clone())?;
+        }
+        Ok(())
+    }
+
     /// 列出所有已保存新闻。
     fn list_news(&self) -> Result<Vec<NewsItem>>;
 }
@@ -88,6 +96,42 @@ impl NewsRepository for SqliteNewsRepository {
             })
     }
 
+    fn save_news_batch(&mut self, items: &[NewsItem]) -> Result<()> {
+        let transaction =
+            self.connection
+                .transaction()
+                .map_err(|error| TrendRadarError::Storage {
+                    message: format!("failed to open sqlite transaction: {error}"),
+                })?;
+
+        {
+            let mut statement = transaction
+                .prepare(
+                    "INSERT INTO news_items (source_id, title, rank)
+                     VALUES (?1, ?2, ?3)
+                     ON CONFLICT(source_id, title)
+                     DO UPDATE SET rank = MIN(news_items.rank, excluded.rank)",
+                )
+                .map_err(|error| TrendRadarError::Storage {
+                    message: format!("failed to prepare batch insert statement: {error}"),
+                })?;
+
+            for item in items {
+                statement
+                    .execute(params![&item.source_id, &item.title, item.rank])
+                    .map_err(|error| TrendRadarError::Storage {
+                        message: format!("failed to save batch news item: {error}"),
+                    })?;
+            }
+        }
+
+        transaction
+            .commit()
+            .map_err(|error| TrendRadarError::Storage {
+                message: format!("failed to commit sqlite transaction: {error}"),
+            })
+    }
+
     fn list_news(&self) -> Result<Vec<NewsItem>> {
         let mut statement = self
             .connection
@@ -145,6 +189,37 @@ mod tests {
         assert_eq!(stored[0].title, "Rust 1.85.0 released");
         assert_eq!(stored[0].rank, 1);
         assert_eq!(stored[1].source_id, "community-hotlist");
+        Ok(())
+    }
+
+    #[test]
+    fn sqlite_repository_batch_write_preserves_dedup_semantics() -> Result<(), Box<dyn Error>> {
+        let mut repository = SqliteNewsRepository::in_memory()?;
+        let items = vec![
+            NewsItem {
+                title: "Rust 1.85.0 released".to_owned(),
+                source_id: "weibo".to_owned(),
+                rank: 12,
+            },
+            NewsItem {
+                title: "Rust 1.85.0 released".to_owned(),
+                source_id: "weibo".to_owned(),
+                rank: 3,
+            },
+            NewsItem {
+                title: "TrendRadar migration plan updated".to_owned(),
+                source_id: "rust-blog".to_owned(),
+                rank: 8,
+            },
+        ];
+
+        repository.save_news_batch(&items)?;
+
+        let stored = repository.list_news()?;
+        assert_eq!(stored.len(), 2);
+        assert_eq!(stored[0].title, "Rust 1.85.0 released");
+        assert_eq!(stored[0].rank, 3);
+        assert_eq!(stored[1].title, "TrendRadar migration plan updated");
         Ok(())
     }
 

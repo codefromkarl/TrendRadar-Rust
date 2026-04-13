@@ -18,6 +18,10 @@ path = "src/lib.rs"
 name = "trendradar"
 path = "src/main.rs"
 
+[[bench]]
+name = "pipeline_bench"
+harness = false
+
 [dependencies]
 anyhow.workspace = true
 chrono.workspace = true
@@ -35,6 +39,7 @@ trendradar-schedule = { path = "../schedule" }
 trendradar-storage = { path = "../storage" }
 
 [dev-dependencies]
+criterion.workspace = true
 mockito.workspace = true
 serde_json.workspace = true
 

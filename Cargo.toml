@@ -43,6 +43,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "serd
 comfy-table = "7"
 chrono-tz = "0.10"
 clap = { version = "4", features = ["derive"] }
+criterion = "0.5"
 insta = { version = "1.43", features = ["json"] }
 mockito = "1.5"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }

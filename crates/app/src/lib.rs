@@ -118,6 +118,41 @@ pub struct PipelineResult {
     pub report_markdown: Option<String>,
 }
 
+/// 报告输出模式。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputMode {
+    /// 只输出 JSON。
+    Json,
+    /// 只输出 HTML。
+    Html,
+    /// 同时输出 JSON 与 HTML。
+    Both,
+    /// 只输出终端表格。
+    Table,
+    /// 只输出 Markdown。
+    Markdown,
+    /// 输出全部格式，供兼容旧调用方使用。
+    All,
+}
+
+impl OutputMode {
+    fn includes_json(self) -> bool {
+        matches!(self, Self::Json | Self::Both | Self::All)
+    }
+
+    fn includes_html(self) -> bool {
+        matches!(self, Self::Html | Self::Both | Self::All)
+    }
+
+    fn includes_table(self) -> bool {
+        matches!(self, Self::Table | Self::All)
+    }
+
+    fn includes_markdown(self) -> bool {
+        matches!(self, Self::Markdown | Self::All)
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Core pipeline logic (shared by fixture and HTTP paths)
 // ---------------------------------------------------------------------------
@@ -135,6 +170,7 @@ fn run_pipeline_with_fetchers(
     fetchers: &[Box<dyn Fetcher>],
     db_path: Option<&Path>,
     resilient: bool,
+    output_mode: OutputMode,
 ) -> anyhow::Result<PipelineResult> {
     bootstrap_with_config(config)?;
     info!(timezone = %config.timezone, "bootstrap completed");
@@ -200,9 +236,7 @@ fn run_pipeline_with_fetchers(
         }
         None => SqliteNewsRepository::in_memory()?,
     };
-    for item in &filtered_items {
-        repository.save_news(item.clone())?;
-    }
+    repository.save_news_batch(&filtered_items)?;
     let stored_items = repository.list_news()?;
     info!(count = stored_items.len(), "storage completed");
 
@@ -212,10 +246,26 @@ fn run_pipeline_with_fetchers(
             started_at,
             timezone: config.timezone.clone(),
         };
-        let json = Some(render_news_json(&stored_items, &context)?);
-        let html = Some(render_news_html(&stored_items, &context));
-        let table = Some(render_news_table(&stored_items, &context));
-        let markdown = Some(render_news_markdown(&stored_items, &context));
+        let json = if output_mode.includes_json() {
+            Some(render_news_json(&stored_items, &context)?)
+        } else {
+            None
+        };
+        let html = if output_mode.includes_html() {
+            Some(render_news_html(&stored_items, &context))
+        } else {
+            None
+        };
+        let table = if output_mode.includes_table() {
+            Some(render_news_table(&stored_items, &context))
+        } else {
+            None
+        };
+        let markdown = if output_mode.includes_markdown() {
+            Some(render_news_markdown(&stored_items, &context))
+        } else {
+            None
+        };
 
         // -- Notify --
         if config.notification.enabled {
@@ -224,7 +274,12 @@ fn run_pipeline_with_fetchers(
                 config.notification.webhook_url.as_deref(),
             );
             let subject = format!("TrendRadar: {} items collected", stored_items.len());
-            let body = json.as_deref().unwrap_or("{}");
+            let body = json
+                .as_deref()
+                .or(html.as_deref())
+                .or(table.as_deref())
+                .or(markdown.as_deref())
+                .unwrap_or("");
             for notifier in &notifiers {
                 match notifier.send(&subject, body) {
                     Ok(()) => info!("notification sent"),
@@ -283,6 +338,16 @@ pub fn run_fixture_pipeline(
     started_at: DateTime<Utc>,
     sources: &[FixtureSource],
 ) -> anyhow::Result<PipelineResult> {
+    run_fixture_pipeline_with_output(config, started_at, sources, OutputMode::All)
+}
+
+/// 按指定输出模式运行最小 fixture pipeline（内存数据库）。
+pub fn run_fixture_pipeline_with_output(
+    config: &AppConfig,
+    started_at: DateTime<Utc>,
+    sources: &[FixtureSource],
+    output_mode: OutputMode,
+) -> anyhow::Result<PipelineResult> {
     let fetchers: Vec<Box<dyn Fetcher>> = sources
         .iter()
         .map(|source| -> Box<dyn Fetcher> {
@@ -299,7 +364,7 @@ pub fn run_fixture_pipeline(
         })
         .collect();
 
-    run_pipeline_with_fetchers(config, started_at, &fetchers, None, false)
+    run_pipeline_with_fetchers(config, started_at, &fetchers, None, false, output_mode)
 }
 
 // ---------------------------------------------------------------------------
@@ -314,6 +379,16 @@ pub fn run_config_pipeline(
     config: &AppConfig,
     started_at: DateTime<Utc>,
     db_path: Option<&Path>,
+) -> anyhow::Result<PipelineResult> {
+    run_config_pipeline_with_output(config, started_at, db_path, OutputMode::All)
+}
+
+/// 按指定输出模式运行配置驱动的 HTTP pipeline。
+pub fn run_config_pipeline_with_output(
+    config: &AppConfig,
+    started_at: DateTime<Utc>,
+    db_path: Option<&Path>,
+    output_mode: OutputMode,
 ) -> anyhow::Result<PipelineResult> {
     let timeout = Duration::from_secs(config.http_timeout_secs);
     let mut fetchers: Vec<Box<dyn Fetcher>> = Vec::new();
@@ -344,7 +419,7 @@ pub fn run_config_pipeline(
         "HTTP pipeline configured"
     );
 
-    run_pipeline_with_fetchers(config, started_at, &fetchers, db_path, true)
+    run_pipeline_with_fetchers(config, started_at, &fetchers, db_path, true, output_mode)
 }
 
 // ---------------------------------------------------------------------------
