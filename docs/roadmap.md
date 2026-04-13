@@ -10,7 +10,7 @@
 - Release binary: 9.6MB
 - CLI: `--config/--db/--output/--verbose/--dry-run/--help/--version`
 - 输出格式: `json / html / both / table / markdown`
-- 热榜解析: `generic / weibo / zhihu / bilibili`
+- 热榜解析: `generic / weibo / zhihu / bilibili / toutiao / baidu`
 - CI/CD: fmt + clippy + nextest + release binary (Linux/macOS/Windows)
 
 ---
@@ -30,7 +30,7 @@
 #### E1: 多平台热榜适配
 
 - **目标**: 支持微博/知乎/B站等差异化 JSON 格式
-- **当前**: `HotlistParser` trait + 4 实现（Generic/Weibo/Zhihu/Bilibili）+ 工厂函数
+- **当前**: `HotlistParser` trait + 6 实现（Generic/Weibo/Zhihu/Bilibili/Toutiao/Baidu）+ 工厂函数
 - **产出**: 各平台解析器 + `source_type` 配置字段
 - **状态**: ✅ 已完成（Wave 7）
 - **依赖**: 无
@@ -143,7 +143,7 @@ v1.0.0 — Release Candidate
 
 v1.1.0 — 首版增强（已完成 Wave 7）
 ├── ✅ O1: CI/CD pipeline + 三平台 release
-├── ✅ E1: 多平台热榜适配（weibo/zhihu/bilibili）
+├── ✅ E1: 多平台热榜适配（weibo/zhihu/bilibili/toutiao/baidu）
 ├── ✅ E2: 终端彩色表格输出
 ├── ✅ E3: Markdown 输出
 └── ✅ O2: 跨平台构建（合并到 release.yml）

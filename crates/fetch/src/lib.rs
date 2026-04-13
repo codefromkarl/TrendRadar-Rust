@@ -324,12 +324,149 @@ impl HotlistParser for BilibiliHotlistParser {
     }
 }
 
+/// 今日头条热榜解析器。
+#[derive(Debug)]
+pub struct ToutiaoHotlistParser;
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct ToutiaoHotlistImage {
+    url: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct ToutiaoHotlistItem {
+    #[serde(rename = "ClusterIdStr")]
+    cluster_id: String,
+    #[serde(rename = "Title")]
+    title: String,
+    #[serde(rename = "HotValue")]
+    hot_value: String,
+    #[serde(rename = "Image")]
+    image: Option<ToutiaoHotlistImage>,
+    #[serde(rename = "LabelUri")]
+    label_uri: Option<ToutiaoHotlistImage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ToutiaoHotlistResponse {
+    data: Vec<ToutiaoHotlistItem>,
+}
+
+impl HotlistParser for ToutiaoHotlistParser {
+    fn parse(&self, raw: &str, platform_id: &str) -> Result<Vec<NewsItem>> {
+        let response: ToutiaoHotlistResponse =
+            serde_json::from_str(raw).map_err(|error| FetchError::ParseResponse {
+                url: platform_id.to_owned(),
+                message: error.to_string(),
+            })?;
+
+        let items = response
+            .data
+            .into_iter()
+            .enumerate()
+            .map(|(index, item)| NewsItem {
+                title: item.title,
+                source_id: platform_id.to_owned(),
+                rank: (index + 1) as u32,
+            })
+            .collect();
+
+        Ok(items)
+    }
+}
+
+/// 百度热榜解析器。
+#[derive(Debug)]
+pub struct BaiduHotlistParser;
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+struct BaiduHotlistItem {
+    #[serde(default, rename = "isTop")]
+    is_top: bool,
+    word: String,
+    #[serde(rename = "rawUrl")]
+    raw_url: String,
+    #[serde(default)]
+    desc: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct BaiduHotlistCard {
+    content: Vec<BaiduHotlistItem>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BaiduHotlistData {
+    cards: Vec<BaiduHotlistCard>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BaiduHotlistResponse {
+    data: BaiduHotlistData,
+}
+
+fn extract_baidu_embedded_json<'a>(raw: &'a str, platform_id: &str) -> Result<&'a str> {
+    const PREFIX: &str = "<!--s-data:";
+    const SUFFIX: &str = "-->";
+
+    let start = raw.find(PREFIX).ok_or_else(|| FetchError::ParseResponse {
+        url: platform_id.to_owned(),
+        message: "missing baidu embedded json marker".to_owned(),
+    })?;
+    let embedded = &raw[start + PREFIX.len()..];
+    let end = embedded
+        .find(SUFFIX)
+        .ok_or_else(|| FetchError::ParseResponse {
+            url: platform_id.to_owned(),
+            message: "missing baidu embedded json terminator".to_owned(),
+        })?;
+
+    Ok(embedded[..end].trim())
+}
+
+impl HotlistParser for BaiduHotlistParser {
+    fn parse(&self, raw: &str, platform_id: &str) -> Result<Vec<NewsItem>> {
+        let embedded = extract_baidu_embedded_json(raw, platform_id)?;
+        let response: BaiduHotlistResponse =
+            serde_json::from_str(embedded).map_err(|error| FetchError::ParseResponse {
+                url: platform_id.to_owned(),
+                message: error.to_string(),
+            })?;
+
+        let items = response
+            .data
+            .cards
+            .into_iter()
+            .next()
+            .map(|card| {
+                card.content
+                    .into_iter()
+                    .filter(|item| !item.is_top)
+                    .enumerate()
+                    .map(|(index, item)| NewsItem {
+                        title: item.word,
+                        source_id: platform_id.to_owned(),
+                        rank: (index + 1) as u32,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        Ok(items)
+    }
+}
+
 /// 根据数据源类型返回对应的解析器。
 pub fn hotlist_parser_for(source_type: &str) -> Box<dyn HotlistParser> {
     match source_type {
         "weibo" => Box::new(WeiboHotlistParser),
         "zhihu" => Box::new(ZhihuHotlistParser),
         "bilibili" => Box::new(BilibiliHotlistParser),
+        "toutiao" => Box::new(ToutiaoHotlistParser),
+        "baidu" => Box::new(BaiduHotlistParser),
         _ => Box::new(GenericHotlistParser),
     }
 }
@@ -495,9 +632,9 @@ fn http_get_text(client: &reqwest::blocking::Client, url: &str) -> Result<String
 #[allow(clippy::expect_used)]
 mod tests {
     use super::{
-        BilibiliHotlistParser, Fetcher, FixtureHotlistFetcher, FixtureRssFetcher,
-        GenericHotlistParser, HotlistParser, HttpHotlistFetcher, HttpRssFetcher,
-        WeiboHotlistParser, ZhihuHotlistParser, hotlist_parser_for,
+        BaiduHotlistParser, BilibiliHotlistParser, Fetcher, FixtureHotlistFetcher,
+        FixtureRssFetcher, GenericHotlistParser, HotlistParser, HttpHotlistFetcher, HttpRssFetcher,
+        ToutiaoHotlistParser, WeiboHotlistParser, ZhihuHotlistParser, hotlist_parser_for,
     };
     use std::error::Error;
     use std::fs::read_to_string;
@@ -1005,6 +1142,130 @@ mod tests {
     }
 
     #[test]
+    fn toutiao_hotlist_parser_parses_valid_json() -> Result<(), Box<dyn Error>> {
+        let parser = ToutiaoHotlistParser;
+        let raw = r#"{
+            "data": [
+                {
+                    "ClusterIdStr": "7519203592801116712",
+                    "Title": "头条热榜1",
+                    "HotValue": "1234567",
+                    "Image": {"url": "https://example.com/image-1.png"},
+                    "LabelUri": {"url": "https://example.com/icon-1.png"}
+                },
+                {
+                    "ClusterIdStr": "7519203592801116713",
+                    "Title": "头条热榜2",
+                    "HotValue": "7654321",
+                    "Image": {"url": "https://example.com/image-2.png"}
+                }
+            ]
+        }"#;
+
+        let items = parser.parse(raw, "toutiao")?;
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].title, "头条热榜1");
+        assert_eq!(items[0].source_id, "toutiao");
+        assert_eq!(items[0].rank, 1);
+        assert_eq!(items[1].title, "头条热榜2");
+        assert_eq!(items[1].rank, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn toutiao_hotlist_parser_returns_empty_for_empty_data() -> Result<(), Box<dyn Error>> {
+        let parser = ToutiaoHotlistParser;
+        let raw = r#"{"data": []}"#;
+
+        let items = parser.parse(raw, "toutiao")?;
+
+        assert!(items.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn toutiao_hotlist_parser_handles_missing_label_uri() -> Result<(), Box<dyn Error>> {
+        let parser = ToutiaoHotlistParser;
+        let raw = r#"{
+            "data": [
+                {
+                    "ClusterIdStr": "7519203592801116712",
+                    "Title": "头条热榜1",
+                    "HotValue": "1234567",
+                    "Image": {"url": "https://example.com/image-1.png"}
+                }
+            ]
+        }"#;
+
+        let items = parser.parse(raw, "toutiao")?;
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].title, "头条热榜1");
+        Ok(())
+    }
+
+    #[test]
+    fn baidu_hotlist_parser_parses_embedded_json() -> Result<(), Box<dyn Error>> {
+        let parser = BaiduHotlistParser;
+        let raw = r#"<!doctype html>
+<!--s-data:{
+    "data": {
+        "cards": [
+            {
+                "content": [
+                    {"isTop": true, "word": "置顶词", "rawUrl": "https://example.com/top"},
+                    {
+                        "word": "百度热搜1",
+                        "rawUrl": "https://example.com/topic-1",
+                        "desc": "热度描述1"
+                    },
+                    {
+                        "word": "百度热搜2",
+                        "rawUrl": "https://example.com/topic-2"
+                    }
+                ]
+            }
+        ]
+    }
+}-->
+<html></html>"#;
+
+        let items = parser.parse(raw, "baidu")?;
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].title, "百度热搜1");
+        assert_eq!(items[0].source_id, "baidu");
+        assert_eq!(items[0].rank, 1);
+        assert_eq!(items[1].title, "百度热搜2");
+        assert_eq!(items[1].rank, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn baidu_hotlist_parser_returns_empty_for_empty_content() -> Result<(), Box<dyn Error>> {
+        let parser = BaiduHotlistParser;
+        let raw = r#"<!--s-data:{"data":{"cards":[{"content":[]} ]}}-->"#;
+
+        let items = parser.parse(raw, "baidu")?;
+
+        assert!(items.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn baidu_hotlist_parser_reports_error_when_embedded_json_missing() {
+        let parser = BaiduHotlistParser;
+        let raw = r#"<html><body>missing marker</body></html>"#;
+
+        let error = parser
+            .parse(raw, "baidu")
+            .expect_err("baidu parser should reject html without embedded json");
+
+        assert!(error.to_string().contains("failed to parse response"));
+    }
+
+    #[test]
     fn hotlist_parser_for_returns_correct_parsers() {
         // 测试 weibo parser
         let weibo_parser = hotlist_parser_for("weibo");
@@ -1020,6 +1281,17 @@ mod tests {
         let bilibili_parser = hotlist_parser_for("bilibili");
         let bilibili_raw = r#"{"data": {"list": [{"title": "测试"}]}}"#;
         assert!(bilibili_parser.parse(bilibili_raw, "bilibili").is_ok());
+
+        // 测试 toutiao parser
+        let toutiao_parser = hotlist_parser_for("toutiao");
+        let toutiao_raw =
+            r#"{"data": [{"ClusterIdStr": "1", "Title": "测试", "HotValue": "100"}]}"#;
+        assert!(toutiao_parser.parse(toutiao_raw, "toutiao").is_ok());
+
+        // 测试 baidu parser
+        let baidu_parser = hotlist_parser_for("baidu");
+        let baidu_raw = r#"<!--s-data:{"data":{"cards":[{"content":[{"word":"测试","rawUrl":"https://example.com/topic"}]}]}}-->"#;
+        assert!(baidu_parser.parse(baidu_raw, "baidu").is_ok());
 
         // 测试 generic parser（默认）
         let generic_parser = hotlist_parser_for("generic");
