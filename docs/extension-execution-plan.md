@@ -257,7 +257,7 @@
 
 ### B4. 错误码规范
 
-- 状态：`todo`
+- 状态：`done`
 - 目标：统一 CLI 退出码，便于脚本调用和运维诊断。
 - 主要范围：`crates/app`
 - 关键输出：
@@ -273,6 +273,15 @@
 - 完成标准：
 - CLI 退出码稳定可预测
 - 文档与测试同步
+- 当前实现：
+- `crates/app/src/main.rs` 已新增集中式退出码分类，统一映射配置、网络、存储与未知错误
+- `crates/app/tests/binary_smoke.rs` 已补配置错误与存储错误退出码断言
+- `main.rs` 内部单测已补网络错误、存储错误、未知错误的分类断言
+- `README.md` 已新增 CLI 退出码表，明确 `0/1/2/3/4` 语义
+- 验证结果：
+- `cargo test -p trendradar-app --test binary_smoke`
+- `cargo test -p trendradar-app`
+- `cargo check --workspace --all-targets`
 
 ### B5. 安装与分发入口
 

@@ -2,7 +2,15 @@
 
 #![allow(clippy::panic)]
 
+use std::path::PathBuf;
 use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn config_fixture_path(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/system/config")
+        .join(name)
+}
 
 /// trendradar binary 路径。
 fn trendradar_bin() -> String {
@@ -35,6 +43,39 @@ fn binary_runs_with_help_flag() {
         stdout.contains("--dry-run"),
         "help output should mention --dry-run"
     );
+}
+
+#[test]
+fn binary_returns_config_exit_code_for_invalid_config() {
+    let output = Command::new(trendradar_bin())
+        .arg("--config")
+        .arg(config_fixture_path("invalid-empty-timezone.json"))
+        .output()
+        .unwrap_or_else(|e| panic!("failed to run trendradar binary: {e}"));
+
+    assert_eq!(output.status.code(), Some(1));
+}
+
+#[test]
+fn binary_returns_storage_exit_code_for_invalid_db_path() {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_else(|e| panic!("system clock error: {e}"))
+        .as_nanos();
+    let temp_dir = std::env::temp_dir().join(format!("trendradar-binary-smoke-{unique}"));
+    std::fs::create_dir_all(&temp_dir).unwrap_or_else(|e| panic!("create temp dir failed: {e}"));
+
+    let output = Command::new(trendradar_bin())
+        .arg("--config")
+        .arg(config_fixture_path("minimal-valid-http.json"))
+        .arg("--db")
+        .arg(&temp_dir)
+        .output()
+        .unwrap_or_else(|e| panic!("failed to run trendradar binary: {e}"));
+
+    assert_eq!(output.status.code(), Some(3));
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
 }
 
 #[test]

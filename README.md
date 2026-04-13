@@ -112,6 +112,20 @@ just doc
 
 `just doc` 底层执行的是 `cargo doc --workspace --no-deps`，产物位于 `target/doc`。
 
+## CLI 退出码
+
+`trendradar` 的 CLI 退出码约定如下：
+
+| 退出码 | 语义 |
+| --- | --- |
+| `0` | 执行成功 |
+| `1` | 配置错误 |
+| `2` | 网络或上游响应错误 |
+| `3` | 存储错误 |
+| `4` | 未分类的未知错误 |
+
+当前退出码映射集中在 `crates/app/src/main.rs`，不会分散到各 crate。
+
 ## 工作区结构
 
 | 路径 | 作用 |
