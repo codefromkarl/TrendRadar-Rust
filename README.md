@@ -215,6 +215,7 @@ cargo bench --package trendradar-app --bench pipeline_bench
 - [迁移策略](./docs/migration-strategy.md)
 - [实施计划](./docs/implementation-plan.md)
 - [后续拓展执行文档](./docs/extension-execution-plan.md)
+- [性能基线](./docs/benchmark-baseline.md)
 - [并行迁移总方案](./docs/parallel-migration-plan.md)
 - [契约文档目录](./docs/contracts/README.md)
 - [实施文档目录](./docs/implementation/README.md)
@@ -225,6 +226,7 @@ cargo bench --package trendradar-app --bench pipeline_bench
 - [系统性测试模板](./docs/system-test-template.md)
 - [Git 工作流与提交规范](./docs/git-workflow.md)
 - [开发日志](./docs/dev-journal/README.md)
+- [贡献指南](./CONTRIBUTING.md)
 
 ## 协作与贡献
 
