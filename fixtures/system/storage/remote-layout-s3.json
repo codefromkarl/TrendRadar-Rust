@@ -1,0 +1,19 @@
+{
+  "backend": "s3",
+  "layout_version": 1,
+  "index_object": "trendradar/index/latest.json",
+  "shard_pattern": "trendradar/shards/{date}/{source}.json",
+  "read_order": [
+    "index",
+    "shards"
+  ],
+  "dedupe_key": [
+    "source_id",
+    "title"
+  ],
+  "sort_order": [
+    "rank",
+    "source_id",
+    "title"
+  ]
+}

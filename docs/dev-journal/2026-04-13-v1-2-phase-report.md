@@ -55,9 +55,9 @@
 - `cargo check --workspace --all-targets` 可通过
 - `just verify-basic` 可通过
 - release 安装脚本具备基本自检能力
-- `tests/system/` 已覆盖 64 条根级系统测试
+- `tests/system/` 已覆盖 66 条根级系统测试
 - `crates/app/tests/wave4_http_pipeline.rs` 已补齐生产式 HTTP 场景下的关键恢复路径
-- 当前全工作区共 198 tests 通过
+- 当前全工作区共 207 tests 通过
 
 ## 已完成任务判断
 

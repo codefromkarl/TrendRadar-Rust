@@ -20,6 +20,7 @@
 - [analyze](./analyze.md)
 - [fetch](./fetch.md)
 - [storage](./storage.md)
+- [storage-remote-layout](./storage-remote-layout.md)
 - [report](./report.md)
 
 ## 完成标准

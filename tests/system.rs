@@ -27,3 +27,6 @@ mod http_resilient_recovery;
 
 #[path = "system/large_output_consistency.rs"]
 mod large_output_consistency;
+
+#[path = "system/remote_storage_contract.rs"]
+mod remote_storage_contract;
