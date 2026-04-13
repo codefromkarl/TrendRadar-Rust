@@ -22,10 +22,14 @@ path = "src/main.rs"
 anyhow.workspace = true
 chrono.workspace = true
 chrono-tz.workspace = true
+clap.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 trendradar-analyze = { path = "../analyze" }
 trendradar-config = { path = "../config" }
 trendradar-domain = { path = "../domain" }
 trendradar-fetch = { path = "../fetch" }
+trendradar-notification = { path = "../notification" }
 trendradar-report = { path = "../report" }
 trendradar-schedule = { path = "../schedule" }
 trendradar-storage = { path = "../storage" }

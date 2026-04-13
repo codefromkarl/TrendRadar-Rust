@@ -45,7 +45,7 @@ fn config_pipeline_fetches_rss_and_hotlist_via_http() -> Result<(), Box<dyn Erro
         .single()
         .ok_or("invalid timestamp")?;
 
-    let result = run_config_pipeline(&config, started_at)?;
+    let result = run_config_pipeline(&config, started_at, None)?;
 
     rss_mock.assert();
     hotlist_mock.assert();
@@ -71,7 +71,7 @@ fn config_pipeline_with_empty_sources_produces_empty_report() -> Result<(), Box<
         .single()
         .ok_or("invalid timestamp")?;
 
-    let result = run_config_pipeline(&config, started_at)?;
+    let result = run_config_pipeline(&config, started_at, None)?;
 
     assert!(result.collected_items.is_empty());
     assert!(result.report_json.is_some());
@@ -101,8 +101,10 @@ fn config_pipeline_propagates_http_error() -> Result<(), Box<dyn Error>> {
         .single()
         .ok_or("invalid timestamp")?;
 
-    let error = run_config_pipeline(&config, started_at).expect_err("should fail on HTTP 500");
+    // HTTP errors are now handled gracefully (logged, skipped) rather than propagated.
+    // The pipeline should succeed but with empty collected items.
+    let result = run_config_pipeline(&config, started_at, None)?;
 
-    assert!(error.to_string().contains("http 500"));
+    assert!(result.collected_items.is_empty());
     Ok(())
 }
