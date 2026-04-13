@@ -21,13 +21,14 @@ members = [
     "crates/storage",
     "crates/fetch",
     "crates/report",
+    "crates/notification",
     "crates/app",
 ]
 resolver = "2"
 
 [workspace.package]
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.94"
 license = "GPL-3.0-only"
 authors = ["TrendRadar Contributors"]
 repository = "https://github.com/sansan0/TrendRadar"
@@ -39,14 +40,18 @@ categories = ["command-line-utilities", "development-tools"]
 [workspace.dependencies]
 anyhow = "1.0"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+comfy-table = "7"
 chrono-tz = "0.10"
+clap = { version = "4", features = ["derive"] }
 insta = { version = "1.43", features = ["json"] }
 mockito = "1.5"
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 rss = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dev-dependencies]
 anyhow.workspace = true
