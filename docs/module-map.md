@@ -43,8 +43,8 @@
 | 本地存储 | `storage` | 高 | 先抽象，再补 SQLite | 数据写入与读取行为在固定 fixture 下稳定 |
 | JSON / 结构化输出 | `report` | 中 | 直接实现最小版本 | 对固定内部模型输出稳定结果 |
 | CLI 与运行编排 | `app` | 高 | 薄编排 | 能串起配置、抓取、分析、存储和输出的最小闭环，且业务规则仍留在上游 crate |
-| HTML 报告 | `report` | 中 | 延后实现 | 先不阻塞核心链路 |
-| 通知渠道 | 后续 adapter | 低 | 延后 | 首版不作为 Rust 内核完成条件 |
+| HTML 报告 | `report` | 中 | Wave 6 已实现精简 HTML | 自包含 HTML5，内联 CSS，XSS 转义 |
+| 通知渠道 | `notification` | 中 | Wave 6 已实现核心渠道 | `Notifier` trait + WebhookNotifier + ConsoleNotifier |
 | MCP / AI / 翻译 | 暂不进入核心 crate | 低 | 延后 | 首版不迁移 |
 | 版本检查 / 自动开浏览器 / 复杂环境分支 | 不迁移 | 无 | 删除 | 不进入 Rust 首版 |
 
@@ -70,7 +70,42 @@ Wave 3 当前已经补出几条和 `app` 边界直接相关的系统证据：
 - `app` 已通过根级系统测试证明 `started_at + timezone` 在跨午夜窗口下同样具备“窗口内允许 / 窗口外禁止”的完整编排行为，而不是只在 `schedule` crate 内部成立
 - `schedule` / `config` 负责时间窗口和时区合法性，`app` 只负责把 `started_at + timezone` 折算成本地上下文再交给上游决策
 
-这些证据的目标是防止后续迁移把“必须有哪些 source / 平台 / 时间规则”重新塞回 `app`。
+这些证据的目标是防止后续迁移把"必须有哪些 source / 平台 / 时间规则"重新塞回 `app`。
+
+## Wave 5 边界证据
+
+Wave 5 补齐生产就绪化，新增以下边界约束：
+
+- `app` 对 fetch 错误的处理由 `resilient` 参数控制：fixture pipeline（`resilient=false`）传播错误，HTTP pipeline（`resilient=true`）仅记录警告并跳过；系统级测试已覆盖两种行为
+- `app` 的配置文件来源由 `resolve_config_path` 控制，支持三级自动发现；不要求用户显式指定 `--config`
+- `app` 的数据库路径由 `--db` 或 `default_db_path` 自动推导，不硬编码在配置文件中
+- `app` 的日志输出使用 `tracing` 框架，不使用 `println!` 或 `eprintln!`（main.rs 的 JSON 输出除外）
+- `app` 的关键词过滤由 `AppConfig.keywords` 驱动，空列表时不过滤，不引入额外过滤 crate
+- `app` 的 HTTP 超时由 `AppConfig.http_timeout_secs` 统一控制，不分散在各个 fetcher 构造中
+
+## Wave 6 边界证据
+
+Wave 6 完成首版闭合，新增以下边界约束：
+
+- `report` 新增 `render_news_html()` 生成自包含 HTML5，不引入外部模板引擎；HTML 输出通过 `html_escape()` 防 XSS
+- `notification` 作为独立 crate，不依赖 `config` 或 `app`；通过 `build_notifiers(enabled, webhook_url)` 工厂函数解耦配置
+- `app` 的输出格式由 CLI `--output` 参数控制（`json` / `html` / `both`），不硬编码在配置文件中
+- `app` 的通知在 pipeline push 阶段触发，通知失败仅记录警告不中断 pipeline（通知是旁路，不是主路径）
+- `notification` 默认回退到 `ConsoleNotifier`（不配置 webhook 时），确保通知不会静默丢失
+- `AppConfig.notification` 使用 `#[serde(default)]`，现有配置文件无需修改即可升级
+
+## Wave 7 边界证据
+
+Wave 7 完成 v1.1.0 首版增强，新增以下边界约束：
+
+- `fetch` 新增 `HotlistParser` trait 作为解析策略抽象，新增平台只需实现 trait + 注册到工厂函数，不修改 `HttpHotlistFetcher` 主体（开闭原则）
+- `fetch` 的 `HttpHotlistFetcher` 保持向后兼容：`new()` 和 `with_timeout()` 仍使用 `GenericHotlistParser`，新构造器 `with_parser()` 接受注入
+- `config` 的 `HotlistApiConfig.source_type` 为可选字段，缺失时默认 `"generic"`，零破坏性升级
+- `app` 的 pipeline 根据 `api.source_type` 选择 parser，parser 选择逻辑封装在 `hotlist_parser_for()` 工厂函数中
+- `app` 的 CLI `--output` 参数扩展为 `json / html / both / table / markdown`，路由逻辑在 main.rs
+- `report` 新增 `render_news_table()` 和 `render_news_markdown()`，遵循现有 render 函数签名模式
+- `PipelineResult` 扩展 `report_table` 和 `report_markdown` 字段，与 `report_json`/`report_html` 同级
+- CI/CD release pipeline 通过 `.github/workflows/release.yml` 实现，tag 触发三平台构建，不修改应用代码
 
 ## 当前空白与后续补充点
 

@@ -28,6 +28,15 @@ just verify-basic
 - 提交标题符合 `<type>(<scope>): <summary>`
 - 结构性变更同步更新 `README.md` 或 `docs/`
 
+## 编译优化
+
+本项目已配置编译性能优化工具链（详见 `docs/environment-setup.md`）：
+
+- **清理缓存**：`just sweep`（清理 7 天前的旧缓存），**禁止使用 `cargo clean`**
+- **自动测试**：`just watch-test`（监听文件变化，自动运行测试）
+- **测试模式**：日常开发使用 `cargo test`（Debug），**禁止使用 `cargo test --release`**
+- **跨项目缓存**：`sccache` 已全局配置，多项目共享依赖编译缓存
+
 ## 交流方式
 
 - 提交 Issue

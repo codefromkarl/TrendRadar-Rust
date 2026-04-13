@@ -1,0 +1,170 @@
+# TrendRadar Rust 路线图
+
+> 首版闭合后（Wave 6），记录后续任务方向与优先级。
+> 最后更新：Wave 7 完成后（v1.1.0）
+
+## 当前状态
+
+- v1.1.0 首版增强已完成（Wave 7）
+- 161 tests passed, 0 clippy issues
+- Release binary: 9.6MB
+- CLI: `--config/--db/--output/--verbose/--dry-run/--help/--version`
+- 输出格式: `json / html / both / table / markdown`
+- 热榜解析: `generic / weibo / zhihu / bilibili`
+- CI/CD: fmt + clippy + nextest + release binary (Linux/macOS/Windows)
+
+---
+
+## 待办清单
+
+### 🔴 高优先级（建议立即或在 v1.1 中完成）
+
+#### O1: CI/CD Pipeline
+
+- **目标**: GitHub Actions 自动化测试与发布
+- **内容**: `cargo fmt --check` + `cargo clippy` + `cargo test --workspace` + release binary 构建
+- **产出**: `.github/workflows/ci.yml`
+- **状态**: ✅ 已完成（Wave 7）
+- **备注**: ci.yml 补齐 release build 步骤 + 新建 release.yml 三平台自动发布
+
+#### E1: 多平台热榜适配
+
+- **目标**: 支持微博/知乎/B站等差异化 JSON 格式
+- **当前**: `HotlistParser` trait + 4 实现（Generic/Weibo/Zhihu/Bilibili）+ 工厂函数
+- **产出**: 各平台解析器 + `source_type` 配置字段
+- **状态**: ✅ 已完成（Wave 7）
+- **依赖**: 无
+
+---
+
+### 🟡 中优先级（v1.1 ~ v1.2 迭代）
+
+#### E2: 终端彩色表格输出
+
+- **目标**: `--output table` 彩色终端友好输出
+- **依赖**: `comfy-table` crate（7.1.1，兼容 Rust 1.85）
+- **状态**: ✅ 已完成（Wave 7）
+
+#### E3: Markdown 输出格式
+
+- **目标**: `--output markdown` 生成 Markdown 表格
+- **依赖**: 无
+- **状态**: ✅ 已完成（Wave 7）
+
+#### E4: 更多通知渠道
+
+- **目标**: 飞书/钉钉/企业微信通知适配
+- **当前**: 仅 Webhook + Console
+- **架构**: `Notifier` trait 已就位，新增实现即可
+- **状态**: ⬜ 待办
+
+#### O2: 跨平台构建
+
+- **目标**: Linux/macOS/Windows release binary
+- **状态**: ✅ 已完成（Wave 7，合并到 release.yml）
+
+#### O3: 安装脚本
+
+- **目标**: `install.sh` / Homebrew formula / `cargo install`
+- **状态**: ⬜ 待办
+
+#### O4: 错误码规范
+
+- **目标**: 统一 exit code（0 成功 / 1 配置错误 / 2 网络错误 / 3 存储错误）
+- **状态**: ⬜ 待办
+
+---
+
+### 🟢 低优先级（v1.2+ 或按需）
+
+#### E5: 工作日调度/冷却周期
+
+- **目标**: schedule 支持工作日/周末区分、冷却时间间隔
+- **当前**: 布尔开关 + 时间窗口
+- **状态**: ⬜ 待办
+
+#### E6: 性能 Benchmark
+
+- **目标**: 对比 Python 版本，量化 Rust 性能优势
+- **依赖**: `criterion` crate
+- **状态**: ⬜ 待办
+
+#### O5: 集成测试覆盖增强
+
+- **目标**: 更多边界场景（大数据量、并发、网络异常恢复）
+- **状态**: ⬜ 待办
+
+#### O6: 贡献者文档
+
+- **目标**: CONTRIBUTING.md、开发环境搭建、PR 流程
+- **状态**: ⬜ 待办
+
+---
+
+### Phase 5: 生态扩展（v2.0+，内核稳定后按需启动）
+
+#### P1: MCP Server
+
+- **目标**: 基于 Rust 内核构建 MCP tool 接口
+- **前置**: 内核 API 稳定
+- **状态**: ⬜ 待评估
+
+#### P2: AI 分析接入
+
+- **目标**: LLM 驱动的新闻摘要/分析
+- **前置**: P1 或独立 HTTP 服务
+- **状态**: ⬜ 待评估
+
+#### P3: AI 翻译
+
+- **目标**: 多语言翻译能力
+- **前置**: P2
+- **状态**: ⬜ 待评估
+
+#### P4: 远程对象存储
+
+- **目标**: S3/OSS adapter
+- **架构**: `NewsRepository` trait 已就位
+- **状态**: ⬜ 待办
+
+#### P5: 可扩展通知 Sink
+
+- **目标**: 统一 Sink trait + 更多渠道（Telegram/Discord/Slack）
+- **架构**: `Notifier` trait 已就位
+- **状态**: ⬜ 待办
+
+---
+
+## 版本规划
+
+```
+v1.0.0 — Release Candidate
+└── 首版产品边界闭合，生产就绪
+
+v1.1.0 — 首版增强（已完成 Wave 7）
+├── ✅ O1: CI/CD pipeline + 三平台 release
+├── ✅ E1: 多平台热榜适配（weibo/zhihu/bilibili）
+├── ✅ E2: 终端彩色表格输出
+├── ✅ E3: Markdown 输出
+└── ✅ O2: 跨平台构建（合并到 release.yml）
+
+v1.2.0 — 通知与调度扩展
+├── E4: 飞书/钉钉/企业微信通知
+├── E5: 工作日调度/冷却周期
+├── O2: 跨平台构建
+├── O3: 安装脚本
+└── E6: 性能 benchmark
+
+v2.0.0 — 生态扩展（Phase 5）
+├── P4: 远程对象存储
+├── P5: 可扩展通知 Sink
+├── P1: MCP Server
+└── P2/P3: AI 分析/翻译（按需）
+```
+
+## 决策原则
+
+1. **用户反馈驱动** — Phase 5 不预设需求，先验证 v1.0 满足核心场景
+2. **架构已就位** — `Notifier`/`NewsRepository`/`Fetcher` trait 可直接扩展新实现
+3. **O1（CI/CD）不阻塞版本** — 可在任何时间点补入
+4. **E1（多平台）是替代 Python 的关键** — 决定 Rust 版本实际使用价值

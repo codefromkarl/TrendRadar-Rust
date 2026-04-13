@@ -42,6 +42,12 @@
 - `cargo nextest run --workspace --all-features`
 - `cargo deny check`
 - `cargo llvm-cov nextest --workspace --all-features`
+- `cargo sweep --time <days>`
+- `cargo sweep --all`
+- `cargo watch -x test`
+- `cargo watch -x check`
+- `sccache --show-stats`
+- `sccache --start-server`
 - `just *`
 - `./scripts/bootstrap.sh`
 - `./scripts/check_environment.sh`

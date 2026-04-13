@@ -53,13 +53,13 @@ TrendRadar Rust 不是一个全新项目，而是从原始 Python 项目 TrendRa
 
 ```toml
 [toolchain]
-channel = "1.85.0"
+channel = "1.94.1"
 components = ["rustfmt", "clippy", "rust-analyzer", "rust-src", "rust-docs"]
 ```
 
 这意味着：
 
-- 本地开发默认使用 `1.85.0`
+- 本地开发默认使用 `1.94.1`
 - 格式化、lint、编辑器补全使用统一组件
 - 本地离线 Rust 文档被纳入固定工具链
 - 不依赖开发者手动记忆要安装哪些 Rust 组件
@@ -68,10 +68,19 @@ components = ["rustfmt", "clippy", "rust-analyzer", "rust-src", "rust-docs"]
 
 本阶段已经把以下扩展工具纳入项目准备范围：
 
+**质量门禁工具：**
+
 - `just`
 - `cargo-nextest`
 - `cargo-llvm-cov`
 - `cargo-deny`
+
+**编译性能工具：**
+
+- `cargo-sweep` — 清理旧编译缓存，替代 `cargo clean`
+- `sccache` — 跨项目共享依赖编译缓存
+- `cargo-watch` — 监听文件变化，自动增量编译和测试
+- `mold` — 高性能链接器（系统级安装），Debug 模式链接提速 50%+
 
 同时补充了 `scripts/bootstrap.sh`，用于统一记录这些工具的准备方式。当前脚本内容如下：
 
@@ -87,6 +96,12 @@ cargo install just
 cargo install cargo-nextest --version 0.9.100 --locked
 cargo install cargo-llvm-cov --version 0.6.21 --locked
 cargo install cargo-deny --version 0.18.3 --locked
+
+# Build performance tools
+cargo install cargo-sweep
+cargo install sccache
+cargo install cargo-watch
+
 bash ./scripts/install_githooks.sh
 ```
 
@@ -137,6 +152,10 @@ just install-githooks
 - `cargo-nextest 0.9.100`
 - `cargo-deny 0.18.3`
 - `cargo-llvm-cov 0.6.21`
+- `cargo-sweep 0.8.0`
+- `sccache 0.14.0`
+- `cargo-watch 8.5.3`
+- `mold`（系统级安装）
 
 同时，`just env-check`、`just verify-basic` 与 `just doc` 已经在当前机器验证通过。
 
@@ -245,14 +264,23 @@ members = [
     "crates/storage",
     "crates/fetch",
     "crates/report",
+    "crates/notification",
     "crates/app",
 ]
 resolver = "2"
 
 [workspace.package]
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.94"
 license = "GPL-3.0-only"
+
+[profile.dev]
+debug = 1
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -268,11 +296,13 @@ panic = "deny"
 
 这些配置说明，本阶段已经把以下约束显式落地：
 
-- 工作区已拆分为多 crate 结构
+- 工作区已拆分为多 crate 结构（含 9 个成员 crate）
 - Rust edition 固定为 `2024`
-- 最低 Rust 版本按 `1.85` 管理
+- 最低 Rust 版本按 `1.94` 管理
 - 默认不允许 `unsafe`
 - `unwrap`、`expect`、`todo!`、`panic!` 被纳入默认限制
+- Debug profile 仅保留最小调试信息（`debug = 1`）
+- Release profile 使用 thin LTO、单 codegen unit、去除调试符号
 
 ## AI 协作准备
 
@@ -397,7 +427,7 @@ Rust 里很多检查天然会走编译流程，但当前项目已经尽量把“
 
 ### 3. 如何保证 Rust 编译速度
 
-当前项目并不把“最快编译”当作唯一目标，而是把“结构清晰 + 编译反馈可接受”作为平衡点。
+当前项目并不把"最快编译"当作唯一目标，而是把"结构清晰 + 编译反馈可接受"作为平衡点。
 
 本阶段已经在结构上做了几件对编译速度有帮助的准备：
 
@@ -405,6 +435,8 @@ Rust 里很多检查天然会走编译流程，但当前项目已经尽量把“
 - 使用 `resolver = "2"`，减少不必要的特性传播
 - 在编辑器侧启用独立 `target`，降低索引和手工构建互相抢占
 - 把纯逻辑模块和编排模块分开，方便后续只重编译局部 crate
+- `[profile.dev] debug = 1` — 最小调试信息，加速 Debug 编译
+- `[profile.release] lto = "thin"` — 平衡 Release 编译时间与二进制体积
 
 后续要继续保证编译速度，应坚持这些方向：
 
@@ -414,6 +446,58 @@ Rust 里很多检查天然会走编译流程，但当前项目已经尽量把“
 - 把高频变动代码和低频基础模块分层
 
 也就是说，Rust 编译速度首先是架构问题，其次才是工具参数问题。
+
+### 4. 编译性能优化工具链
+
+在架构优化之外，当前项目已经配置了以下编译性能工具链：
+
+#### sccache — 跨项目依赖缓存共享
+
+全局配置（`~/.cargo/config.toml`）：
+
+```toml
+[build]
+rustc-wrapper = "sccache"
+```
+
+- 所有 Rust 项目的依赖编译结果缓存在 `~/.cache/sccache`
+- 缓存上限 10 GiB，自动淘汰旧条目
+- 首次编译时缓存未命中，后续编译相同依赖时直接命中缓存
+- 多项目共享 tokio/serde 等重型依赖时效果显著
+
+#### mold — 高性能链接器
+
+项目级配置（`.cargo/config.toml`）：
+
+```toml
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+```
+
+- Debug 模式链接提速 50%+
+- 仅影响链接阶段，不影响编译阶段
+- Release 构建同样受益
+
+#### cargo-sweep — 编译缓存清理
+
+- 替代 `cargo clean`，只清理无用缓存，保留最新增量编译产物
+- 使用方式：`just sweep`（清理 7 天前的缓存）或 `just sweep-all`（全量清理）
+
+#### cargo-watch — 文件监听自动测试
+
+- 监听源码变化，自动执行增量编译和测试
+- 使用方式：`just watch-test`（自动测试）或 `just watch-check`（自动检查）
+
+#### 核心禁忌
+
+日常开发中严禁以下操作：
+
+- ❌ 使用 `cargo clean`（会清空所有编译缓存，导致全量重编译）
+- ❌ 使用 `cargo test --release`（Release 编译慢 10~100 倍，且生成独立缓存）
+- ❌ 随意修改 `Cargo.toml` 依赖（会触发依赖全量重编译）
+- ❌ 删除 `target/` 目录（Rust 增量编译的核心）
+
+如需清理缓存，使用 `cargo sweep --time 7` 或 `just sweep`。
 
 ### 4. 如何保证 Rust 代码保持最新
 
@@ -476,6 +560,22 @@ cov:
 deny:
     cargo deny check
 
+# Clean build artifacts older than N days (default: 7)
+sweep days="7":
+    cargo sweep --time {{days}}
+
+# Clean all unused build artifacts
+sweep-all:
+    cargo sweep --all
+
+# Watch for file changes and auto-run tests
+watch-test:
+    cargo watch -x test
+
+# Watch for file changes and auto-run check
+watch-check:
+    cargo watch -x check
+
 verify: fmt-check lint test
 ```
 
@@ -486,6 +586,8 @@ verify: fmt-check lint test
 - `just test` 依赖 `cargo-nextest`
 - `just deny` 依赖 `cargo-deny`
 - `just cov` 依赖 `cargo-llvm-cov`
+- `just sweep` 依赖 `cargo-sweep`
+- `just watch-test` / `just watch-check` 依赖 `cargo-watch`
 
 ### 文档同步提醒机制
 

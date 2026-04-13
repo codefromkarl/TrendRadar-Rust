@@ -68,6 +68,26 @@
 - 已实现 `run_config_pipeline`，从 `AppConfig` 的 `rss_feeds` 和 `hotlist_apis` 构建 HTTP fetcher 并运行全链路
 - 已添加 `trendradar` binary 入口（`src/main.rs`），支持从配置文件运行 HTTP pipeline
 - 已补 3 条 mockito 隔离的 HTTP pipeline 集成测试（正常抓取、空来源、HTTP 错误传播）
+- Wave 5 已补 clap CLI 参数解析（`--config` / `--db` / `--verbose` / `--dry-run`）
+- Wave 5 已补 tracing 日志框架（`tracing` + `tracing-subscriber`，pipeline 各阶段 info/debug/warn）
+- Wave 5 已补配置文件自动发现（`discover_config_path`：当前目录 → `~/.config/trendradar` → `/etc/trendradar`）
+- Wave 5 已补文件 SQLite 持久化（`SqliteNewsRepository::open(path)`，自动创建父目录）
+- Wave 5 已补关键词过滤集成（`filter_by_keywords`，由 `AppConfig.keywords` 驱动）
+- Wave 5 已补 HTTP 超时配置（`with_timeout()` 构造器，由 `AppConfig.http_timeout_secs` 驱动）
+- Wave 5 已补 pipeline resilient 双模式（`run_pipeline_with_fetchers` 新增 `resilient: bool`）
+- Wave 5 已补 3 条 binary smoke test（`--help`、`--version`、`--dry-run` + fixture config）
+- Wave 5 HTTP 错误处理测试已更新为容错模式验证（非错误传播）
+- Wave 6 已补 `render_news_html()` HTML 报告渲染（`--output html/json/both` CLI 参数）
+- Wave 6 已补 `notification` crate 集成（`Notifier` trait + `WebhookNotifier` + `ConsoleNotifier`）
+- Wave 6 已补 `AppConfig.notification` 配置字段（`NotificationConfig { enabled, webhook_url }`）
+- Wave 6 已补通知在 pipeline push 阶段发送，失败仅 warn 不中断
+- Wave 6 已补 `docs/migration-guide.md` Python→Rust 配置迁移指南
+- Wave 6 Release 构建：9.6MB binary，首版产品边界（§7）全部闭合
+- Wave 7 已补 `--output table/markdown` CLI 路由（终端彩色表格 + GFM Markdown 表格）
+- Wave 7 已补 `PipelineResult` 扩展（`report_table` + `report_markdown` 字段）
+- Wave 7 已补多平台热榜 parser 注入（`hotlist_parser_for()` 工厂 + `HttpHotlistFetcher::with_parser()`）
+- Wave 7 已补 `AppConfig.hotlist_apis[].source_type` 配置字段
+- Wave 7 已补 CI/CD release pipeline（`.github/workflows/release.yml` 三平台构建）
 
 ## 验证命令
 
