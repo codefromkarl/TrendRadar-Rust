@@ -42,6 +42,9 @@
 | `keywords` | `string[]` | `[]` | 关键词过滤列表（空=不过滤） |
 | `notification.enabled` | `bool` | `false` | 是否启用通知 |
 | `notification.webhook_url` | `string?` | `null` | Webhook URL |
+| `notification.feishu_webhook_url` | `string?` | `null` | 飞书机器人 Webhook URL |
+| `notification.dingtalk_webhook_url` | `string?` | `null` | 钉钉机器人 Webhook URL |
+| `notification.wecom_webhook_url` | `string?` | `null` | 企业微信机器人 Webhook URL |
 | `hotlist_apis[].source_type` | `string?` | `"generic"` | 热榜数据源类型 |
 
 ## 最小配置示例
@@ -67,7 +70,10 @@
   "http_timeout_secs": 15,
   "notification": {
     "enabled": true,
-    "webhook_url": "https://hooks.example.com/trendradar"
+    "webhook_url": "https://hooks.example.com/trendradar",
+    "feishu_webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/xxx",
+    "dingtalk_webhook_url": "https://oapi.dingtalk.com/robot/send?access_token=xxx",
+    "wecom_webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx"
   },
   "rss_feeds": [
     { "source_id": "rust-blog", "url": "https://blog.rust-lang.org/feed.xml" }

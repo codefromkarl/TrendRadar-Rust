@@ -1,7 +1,7 @@
 //! 调度解析骨架。
 
 use serde::{Deserialize, Serialize};
-use trendradar_config::{AppConfig, ScheduleConfig, ScheduleWindowConfig};
+use trendradar_config::{AppConfig, ScheduleConfig, ScheduleOverrideConfig, ScheduleWindowConfig};
 
 /// 调度决策。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -29,6 +29,8 @@ impl Default for ScheduleDecision {
 pub struct ScheduleContext {
     /// 已按配置时区折算后的本地小时，范围 0-23。
     pub local_hour: u8,
+    /// 当前是否为周末。
+    pub is_weekend: bool,
 }
 
 /// 从调度配置生成决策。
@@ -53,15 +55,40 @@ fn window_matches_hour(window: &ScheduleWindowConfig, local_hour: u8) -> bool {
     }
 }
 
+fn active_override(
+    schedule: &ScheduleConfig,
+    context: ScheduleContext,
+) -> Option<&ScheduleOverrideConfig> {
+    if context.is_weekend {
+        schedule.weekend.as_ref()
+    } else {
+        schedule.weekday.as_ref()
+    }
+}
+
 /// 从调度配置和显式上下文生成决策。
 #[must_use]
 pub fn decision_from_schedule_at(
     schedule: &ScheduleConfig,
     context: ScheduleContext,
 ) -> ScheduleDecision {
-    let base = decision_from_schedule(schedule);
+    let override_config = active_override(schedule, context);
+    let base = ScheduleDecision {
+        collect: override_config
+            .and_then(|config| config.collect)
+            .unwrap_or(schedule.collect),
+        analyze: override_config
+            .and_then(|config| config.analyze)
+            .unwrap_or(schedule.analyze),
+        push: override_config
+            .and_then(|config| config.push)
+            .unwrap_or(schedule.push),
+    };
+    let effective_window = override_config
+        .and_then(|config| config.window.as_ref())
+        .or(schedule.window.as_ref());
 
-    match &schedule.window {
+    match effective_window {
         Some(window) if !window_matches_hour(window, context.local_hour) => ScheduleDecision {
             collect: false,
             analyze: false,
@@ -88,7 +115,10 @@ mod tests {
     use super::{ScheduleContext, ScheduleDecision, decision_from_config, decision_from_config_at};
     use std::error::Error;
     use std::fs::read_to_string;
-    use trendradar_config::{AppConfig, ScheduleConfig, load_config_from_json_str};
+    use trendradar_config::{
+        AppConfig, ScheduleConfig, ScheduleOverrideConfig, ScheduleWindowConfig,
+        load_config_from_json_str,
+    };
 
     fn schedule_fixture_path(name: &str) -> String {
         format!(
@@ -107,6 +137,8 @@ mod tests {
                 analyze: true,
                 push: false,
                 window: None,
+                weekday: None,
+                weekend: None,
             },
             rss_feeds: Vec::new(),
             hotlist_apis: Vec::new(),
@@ -144,7 +176,13 @@ mod tests {
         let config = load_config_from_json_str(&fixture)?;
 
         assert_eq!(
-            decision_from_config_at(&config, ScheduleContext { local_hour: 10 }),
+            decision_from_config_at(
+                &config,
+                ScheduleContext {
+                    local_hour: 10,
+                    is_weekend: false,
+                },
+            ),
             ScheduleDecision {
                 collect: true,
                 analyze: true,
@@ -152,7 +190,13 @@ mod tests {
             }
         );
         assert_eq!(
-            decision_from_config_at(&config, ScheduleContext { local_hour: 20 }),
+            decision_from_config_at(
+                &config,
+                ScheduleContext {
+                    local_hour: 20,
+                    is_weekend: false,
+                },
+            ),
             ScheduleDecision {
                 collect: false,
                 analyze: false,
@@ -168,7 +212,13 @@ mod tests {
         let config = load_config_from_json_str(&fixture)?;
 
         assert_eq!(
-            decision_from_config_at(&config, ScheduleContext { local_hour: 23 }),
+            decision_from_config_at(
+                &config,
+                ScheduleContext {
+                    local_hour: 23,
+                    is_weekend: false,
+                },
+            ),
             ScheduleDecision {
                 collect: true,
                 analyze: false,
@@ -176,7 +226,13 @@ mod tests {
             }
         );
         assert_eq!(
-            decision_from_config_at(&config, ScheduleContext { local_hour: 12 }),
+            decision_from_config_at(
+                &config,
+                ScheduleContext {
+                    local_hour: 12,
+                    is_weekend: false,
+                },
+            ),
             ScheduleDecision {
                 collect: false,
                 analyze: false,
@@ -184,5 +240,90 @@ mod tests {
             }
         );
         Ok(())
+    }
+
+    #[test]
+    fn weekend_override_disables_pipeline_on_weekend() {
+        let config = AppConfig {
+            timezone: "Asia/Shanghai".to_owned(),
+            platforms: vec!["weibo".to_owned()],
+            schedule: ScheduleConfig {
+                collect: true,
+                analyze: true,
+                push: true,
+                window: None,
+                weekday: None,
+                weekend: Some(ScheduleOverrideConfig {
+                    collect: Some(false),
+                    analyze: Some(false),
+                    push: Some(false),
+                    window: None,
+                }),
+            },
+            rss_feeds: Vec::new(),
+            hotlist_apis: Vec::new(),
+            http_timeout_secs: 30,
+            keywords: Vec::new(),
+            notification: trendradar_config::NotificationConfig::default(),
+        };
+
+        assert_eq!(
+            decision_from_config_at(
+                &config,
+                ScheduleContext {
+                    local_hour: 10,
+                    is_weekend: true,
+                },
+            ),
+            ScheduleDecision {
+                collect: false,
+                analyze: false,
+                push: false,
+            }
+        );
+    }
+
+    #[test]
+    fn weekday_override_applies_custom_window() {
+        let config = AppConfig {
+            timezone: "Asia/Shanghai".to_owned(),
+            platforms: vec!["weibo".to_owned()],
+            schedule: ScheduleConfig {
+                collect: true,
+                analyze: true,
+                push: true,
+                window: None,
+                weekday: Some(ScheduleOverrideConfig {
+                    collect: None,
+                    analyze: None,
+                    push: None,
+                    window: Some(ScheduleWindowConfig {
+                        start_hour: 9,
+                        end_hour: 18,
+                    }),
+                }),
+                weekend: None,
+            },
+            rss_feeds: Vec::new(),
+            hotlist_apis: Vec::new(),
+            http_timeout_secs: 30,
+            keywords: Vec::new(),
+            notification: trendradar_config::NotificationConfig::default(),
+        };
+
+        assert_eq!(
+            decision_from_config_at(
+                &config,
+                ScheduleContext {
+                    local_hour: 20,
+                    is_weekend: false,
+                },
+            ),
+            ScheduleDecision {
+                collect: false,
+                analyze: false,
+                push: false,
+            }
+        );
     }
 }

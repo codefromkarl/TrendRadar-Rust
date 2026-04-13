@@ -1,9 +1,10 @@
 //! 应用编排层：fixture 与 HTTP pipeline 共享调度/分析/存储/报告逻辑。
 
 use std::path::{Path, PathBuf};
+use std::thread;
 use std::time::Duration;
 
-use chrono::{DateTime, Timelike, Utc};
+use chrono::{DateTime, Datelike, Timelike, Utc, Weekday};
 use tracing::{debug, info, warn};
 use trendradar_analyze::{
     RankedNews, SourceSummary, filter_by_keywords, group_news_by_source, rank_news,
@@ -170,6 +171,7 @@ fn run_pipeline_with_fetchers(
     fetchers: &[Box<dyn Fetcher>],
     db_path: Option<&Path>,
     resilient: bool,
+    concurrent_fetch: bool,
     output_mode: OutputMode,
 ) -> anyhow::Result<PipelineResult> {
     bootstrap_with_config(config)?;
@@ -184,24 +186,17 @@ fn run_pipeline_with_fetchers(
     );
 
     // -- Collect --
-    let mut collected_items = Vec::new();
-    if decision.collect {
-        for fetcher in fetchers {
-            match fetcher.fetch() {
-                Ok(items) => {
-                    debug!(count = items.len(), "fetched items");
-                    collected_items.extend(items);
-                }
-                Err(error) if resilient => {
-                    warn!(%error, "fetch failed, skipping source");
-                }
-                Err(error) => {
-                    return Err(error.into());
-                }
-            }
-        }
-        info!(total = collected_items.len(), "collection completed");
-    }
+    let collected_items = if decision.collect {
+        let collected = if concurrent_fetch {
+            collect_items(fetchers, resilient)?
+        } else {
+            collect_items_sequentially(fetchers, resilient)?
+        };
+        info!(total = collected.len(), "collection completed");
+        collected
+    } else {
+        Vec::new()
+    };
 
     // -- Keyword filtering --
     let filtered_items = filter_by_keywords(&collected_items, &config.keywords);
@@ -272,6 +267,9 @@ fn run_pipeline_with_fetchers(
             let notifiers = trendradar_notification::build_notifiers(
                 config.notification.enabled,
                 config.notification.webhook_url.as_deref(),
+                config.notification.feishu_webhook_url.as_deref(),
+                config.notification.dingtalk_webhook_url.as_deref(),
+                config.notification.wecom_webhook_url.as_deref(),
             );
             let subject = format!("TrendRadar: {} items collected", stored_items.len());
             let body = json
@@ -307,24 +305,88 @@ fn run_pipeline_with_fetchers(
     })
 }
 
+fn collect_items(fetchers: &[Box<dyn Fetcher>], resilient: bool) -> anyhow::Result<Vec<NewsItem>> {
+    thread::scope(|scope| {
+        let handles: Vec<_> = fetchers
+            .iter()
+            .map(|fetcher| scope.spawn(move || fetcher.fetch()))
+            .collect();
+
+        let mut collected_items = Vec::new();
+        for handle in handles {
+            let fetch_result = handle.join().map_err(|panic_payload| {
+                let panic_message = if let Some(message) = panic_payload.downcast_ref::<&str>() {
+                    (*message).to_owned()
+                } else if let Some(message) = panic_payload.downcast_ref::<String>() {
+                    message.clone()
+                } else {
+                    "unknown panic payload".to_owned()
+                };
+                anyhow::anyhow!("fetch worker panicked: {panic_message}")
+            })?;
+
+            match fetch_result {
+                Ok(items) => {
+                    debug!(count = items.len(), "fetched items");
+                    collected_items.extend(items);
+                }
+                Err(error) if resilient => {
+                    warn!(%error, "fetch failed, skipping source");
+                }
+                Err(error) => return Err(error.into()),
+            }
+        }
+
+        Ok(collected_items)
+    })
+}
+
+fn collect_items_sequentially(
+    fetchers: &[Box<dyn Fetcher>],
+    resilient: bool,
+) -> anyhow::Result<Vec<NewsItem>> {
+    let mut collected_items = Vec::new();
+    for fetcher in fetchers {
+        match fetcher.fetch() {
+            Ok(items) => {
+                debug!(count = items.len(), "fetched items");
+                collected_items.extend(items);
+            }
+            Err(error) if resilient => {
+                warn!(%error, "fetch failed, skipping source");
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
+
+    Ok(collected_items)
+}
+
 /// 根据配置计算调度决策。
 fn compute_decision(
     config: &AppConfig,
     started_at: DateTime<Utc>,
 ) -> anyhow::Result<ScheduleDecision> {
-    match config.schedule.window {
-        Some(_) => {
+    match (
+        config.schedule.window.is_some(),
+        config.schedule.weekday.is_some(),
+        config.schedule.weekend.is_some(),
+    ) {
+        (true, _, _) | (_, true, _) | (_, _, true) => {
             let timezone: chrono_tz::Tz = config
                 .timezone
                 .parse()
                 .map_err(|_| anyhow::anyhow!("invalid timezone in config: {}", config.timezone))?;
-            let local_hour = started_at.with_timezone(&timezone).hour() as u8;
+            let local_time = started_at.with_timezone(&timezone);
             Ok(decision_from_config_at(
                 config,
-                ScheduleContext { local_hour },
+                ScheduleContext {
+                    local_hour: local_time.hour() as u8,
+                    is_weekend: matches!(local_time.weekday(), Weekday::Sat | Weekday::Sun),
+                },
             ))
         }
-        None => Ok(decision_from_config(config)),
+        (false, false, false) => Ok(decision_from_config(config)),
     }
 }
 
@@ -364,7 +426,15 @@ pub fn run_fixture_pipeline_with_output(
         })
         .collect();
 
-    run_pipeline_with_fetchers(config, started_at, &fetchers, None, false, output_mode)
+    run_pipeline_with_fetchers(
+        config,
+        started_at,
+        &fetchers,
+        None,
+        false,
+        false,
+        output_mode,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -419,7 +489,15 @@ pub fn run_config_pipeline_with_output(
         "HTTP pipeline configured"
     );
 
-    run_pipeline_with_fetchers(config, started_at, &fetchers, db_path, true, output_mode)
+    run_pipeline_with_fetchers(
+        config,
+        started_at,
+        &fetchers,
+        db_path,
+        true,
+        true,
+        output_mode,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -470,4 +548,125 @@ pub fn default_db_path(config_path: Option<&Path>) -> PathBuf {
         .and_then(|p| p.parent())
         .map(|dir| dir.join(DEFAULT_DB_FILENAME))
         .unwrap_or_else(|| PathBuf::from(DEFAULT_DB_FILENAME))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{OutputMode, collect_items, run_pipeline_with_fetchers};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+    use trendradar_config::{AppConfig, NotificationConfig, ScheduleConfig};
+    use trendradar_domain::NewsItem;
+    use trendradar_fetch::{FetchError, Fetcher};
+
+    struct ProbeFetcher {
+        source_id: String,
+        active: Arc<AtomicUsize>,
+        max_active: Arc<AtomicUsize>,
+        sleep_for: Duration,
+    }
+
+    impl Fetcher for ProbeFetcher {
+        fn fetch(&self) -> trendradar_fetch::Result<Vec<NewsItem>> {
+            let current = self.active.fetch_add(1, Ordering::SeqCst) + 1;
+            self.max_active.fetch_max(current, Ordering::SeqCst);
+            std::thread::sleep(self.sleep_for);
+            self.active.fetch_sub(1, Ordering::SeqCst);
+
+            Ok(vec![NewsItem {
+                title: format!("{} item", self.source_id),
+                source_id: self.source_id.clone(),
+                rank: 1,
+            }])
+        }
+    }
+
+    struct ErrorFetcher;
+
+    impl Fetcher for ErrorFetcher {
+        fn fetch(&self) -> trendradar_fetch::Result<Vec<NewsItem>> {
+            Err(FetchError::Network {
+                url: "https://example.invalid/fail".to_owned(),
+                message: "simulated error".to_owned(),
+            })
+        }
+    }
+
+    fn test_config() -> AppConfig {
+        AppConfig {
+            timezone: "Asia/Shanghai".to_owned(),
+            platforms: Vec::new(),
+            schedule: ScheduleConfig {
+                collect: true,
+                analyze: false,
+                push: false,
+                window: None,
+                weekday: None,
+                weekend: None,
+            },
+            rss_feeds: Vec::new(),
+            hotlist_apis: Vec::new(),
+            http_timeout_secs: 5,
+            keywords: Vec::new(),
+            notification: NotificationConfig::default(),
+        }
+    }
+
+    #[test]
+    fn collect_items_fetches_sources_concurrently() -> anyhow::Result<()> {
+        let active = Arc::new(AtomicUsize::new(0));
+        let max_active = Arc::new(AtomicUsize::new(0));
+        let fetchers: Vec<Box<dyn Fetcher>> = vec![
+            Box::new(ProbeFetcher {
+                source_id: "weibo".to_owned(),
+                active: Arc::clone(&active),
+                max_active: Arc::clone(&max_active),
+                sleep_for: Duration::from_millis(80),
+            }),
+            Box::new(ProbeFetcher {
+                source_id: "rss".to_owned(),
+                active: Arc::clone(&active),
+                max_active: Arc::clone(&max_active),
+                sleep_for: Duration::from_millis(80),
+            }),
+        ];
+
+        let collected = collect_items(&fetchers, false)?;
+        assert_eq!(collected.len(), 2);
+        assert!(
+            max_active.load(Ordering::SeqCst) >= 2,
+            "fetchers should overlap when collected concurrently"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn resilient_collection_keeps_successful_items() -> anyhow::Result<()> {
+        let active = Arc::new(AtomicUsize::new(0));
+        let max_active = Arc::new(AtomicUsize::new(0));
+        let fetchers: Vec<Box<dyn Fetcher>> = vec![
+            Box::new(ErrorFetcher),
+            Box::new(ProbeFetcher {
+                source_id: "rss".to_owned(),
+                active,
+                max_active,
+                sleep_for: Duration::from_millis(10),
+            }),
+        ];
+
+        let result = run_pipeline_with_fetchers(
+            &test_config(),
+            chrono::Utc::now(),
+            &fetchers,
+            None,
+            true,
+            true,
+            OutputMode::All,
+        )?;
+
+        assert_eq!(result.collected_items.len(), 1);
+        assert_eq!(result.collected_items[0].source_id, "rss");
+        Ok(())
+    }
 }

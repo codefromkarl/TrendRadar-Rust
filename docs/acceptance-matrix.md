@@ -177,6 +177,27 @@ Wave 6 完成首版闭合，补齐 migration-strategy.md §7 产品边界最后�
 - `crates/report` — HTML 报告（5 tests：HTML5 结构、数据嵌入、XSS 转义、元数据、空状态）
 - `crates/notification` — 通知渠道（7 tests：console 发送、webhook mock、HTTP 错误、build_notifiers 各分支）
 
+## 当前 Wave 8 证据
+
+Wave 8 完成通知渠道扩展，补齐 v1.2 第一项功能缺口：
+
+新增 API：
+- `FeishuNotifier::new(url)` — 飞书机器人文本通知
+- `DingTalkNotifier::new(url)` — 钉钉机器人文本通知
+- `WeComNotifier::new(url)` — 企业微信机器人文本通知
+- `build_notifiers(enabled, webhook_url, feishu_webhook_url, dingtalk_webhook_url, wecom_webhook_url)` — 多渠道通知工厂
+
+新增 AppConfig 字段：
+- `notification.feishu_webhook_url: Option<String>`
+- `notification.dingtalk_webhook_url: Option<String>`
+- `notification.wecom_webhook_url: Option<String>`
+
+新增测试：
+- `crates/notification` — 3 条新增 mock payload 测试 + 1 条多渠道工厂测试
+- `crates/config` — 通知字段加载与默认值测试
+
+当前全量验证：全 workspace tests passed，0 clippy issues（除仓库既有 MSRV 提示）
+
 新增文档：
 - `docs/migration-guide.md` — Python → Rust 配置迁移指南
 

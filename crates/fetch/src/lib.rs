@@ -59,7 +59,7 @@ pub enum FetchError {
 }
 
 /// 抓取器接口。
-pub trait Fetcher {
+pub trait Fetcher: Send + Sync {
     /// 拉取一批新闻条目。
     fn fetch(&self) -> Result<Vec<NewsItem>>;
 }

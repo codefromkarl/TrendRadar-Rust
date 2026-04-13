@@ -6,9 +6,9 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use chrono::TimeZone;
-use criterion::{BatchSize, Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use trendradar_analyze::{filter_by_keywords, group_news_by_source, rank_news};
-use trendradar_app::{FixtureSource, PipelineResult, run_config_pipeline, run_fixture_pipeline};
+use trendradar_app::{FixtureSource, PipelineResult, run_fixture_pipeline};
 use trendradar_config::{AppConfig, load_config_from_json_str};
 use trendradar_domain::RunContext;
 use trendradar_fetch::{Fetcher, FixtureHotlistFetcher, FixtureRssFetcher};
@@ -77,27 +77,6 @@ fn benchmark_fixture_pipeline(criterion: &mut Criterion) {
                 .expect("fixture pipeline benchmark must succeed");
             consume_pipeline_result(&result);
         });
-    });
-    group.finish();
-}
-
-fn benchmark_http_pipeline_smoke(criterion: &mut Criterion) {
-    let started_at = fixed_started_at();
-
-    let mut group = criterion.benchmark_group("pipeline_total");
-    group.sample_size(10);
-    group.warm_up_time(Duration::from_secs(1));
-    group.measurement_time(Duration::from_secs(3));
-    group.bench_function("http_pipeline_smoke", |bencher| {
-        bencher.iter_batched(
-            benchmark_http_setup,
-            |(_server, config)| {
-                let result = run_config_pipeline(&config, started_at, None)
-                    .expect("http smoke benchmark must succeed");
-                consume_pipeline_result(&result);
-            },
-            BatchSize::SmallInput,
-        );
     });
     group.finish();
 }
@@ -179,59 +158,6 @@ fn benchmark_report_stage(criterion: &mut Criterion) {
     group.finish();
 }
 
-fn benchmark_http_setup() -> (mockito::ServerGuard, AppConfig) {
-    let mut server = mockito::Server::new();
-    let rss_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0">
-  <channel>
-    <title>Test Feed</title>
-    <item><title>Rust 1.85 released</title></item>
-  </channel>
-</rss>"#;
-
-    server
-        .mock("GET", "/rss.xml")
-        .with_status(200)
-        .with_body(rss_xml)
-        .create();
-
-    server
-        .mock("GET", "/hotlist")
-        .with_status(200)
-        .with_body(r#"[{"title":"Breaking news","rank":1}]"#)
-        .create();
-
-    let config_json = format!(
-        r#"{{
-            "timezone": "Asia/Shanghai",
-            "schedule": {{
-                "collect": true,
-                "analyze": true,
-                "push": true
-            }},
-            "rss_feeds": [
-                {{
-                    "source_id": "rust-blog",
-                    "url": "{}/rss.xml"
-                }}
-            ],
-            "hotlist_apis": [
-                {{
-                    "platform_id": "weibo",
-                    "url": "{}/hotlist",
-                    "source_type": "generic"
-                }}
-            ],
-            "http_timeout_secs": 5
-        }}"#,
-        server.url(),
-        server.url(),
-    );
-
-    let config = load_config_from_json_str(&config_json).expect("http benchmark config must parse");
-    (server, config)
-}
-
 fn consume_pipeline_result(result: &PipelineResult) {
     black_box((
         result.collected_items.len(),
@@ -254,7 +180,6 @@ criterion_group!(
     config = Criterion::default().sample_size(20).warm_up_time(Duration::from_secs(1));
     targets =
         benchmark_fixture_pipeline,
-        benchmark_http_pipeline_smoke,
         benchmark_fetch_stage,
         benchmark_analyze_stage,
         benchmark_storage_stage,

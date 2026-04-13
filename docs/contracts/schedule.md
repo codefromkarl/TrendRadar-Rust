@@ -25,11 +25,15 @@
 - `AppConfig.schedule.push`
 - `AppConfig.schedule.window.start_hour`
 - `AppConfig.schedule.window.end_hour`
+- `AppConfig.schedule.weekday.*`
+- `AppConfig.schedule.weekend.*`
 
 当前时间窗口表达方式：
 
 - 在布尔阶段开关之外，新增可选 `schedule.window`
+- `schedule.weekday` / `schedule.weekend` 可按日类型覆盖阶段开关与窗口
 - `ScheduleContext.local_hour` 表示已按配置时区折算后的本地小时
+- `ScheduleContext.is_weekend` 表示当前本地时间是否落在周末
 - 当前窗口采用半开区间 `[start_hour, end_hour)` 语义
 - 当 `start_hour > end_hour` 时表示跨午夜窗口
 
@@ -52,6 +56,7 @@
 - `analyze` 为 `true` 时，允许分析阶段执行
 - `push` 为 `true` 时，允许推送阶段执行
 - 若显式注入的本地小时不在窗口内，三个阶段均返回 `false`
+- 若存在 `weekday/weekend` 覆盖规则，则当前日类型优先使用覆盖值，否则回落到顶层 `schedule`
 
 默认决策：
 
@@ -73,7 +78,7 @@
 
 如何注入测试时间：
 
-- 当前通过 `ScheduleContext { local_hour }` 注入
+- 当前通过 `ScheduleContext { local_hour, is_weekend }` 注入
 - 后续若引入更细粒度上下文，也应保持显式注入
 
 ## 错误契约
@@ -113,4 +118,4 @@ fixture：
 
 ## 开放问题
 
-- 是否需要支持工作日、冷却周期等更细粒度规则
+- `weekday/weekend` 已进入实现，`cooldown` 仍待定义状态来源与持久化边界

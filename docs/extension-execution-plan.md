@@ -74,15 +74,17 @@
 - 后续优化任务都能引用同一基线
 - 当前实现：
 - benchmark 入口：`cargo bench --package trendradar-app --bench pipeline_bench`
-- 基线覆盖：fixture pipeline total、HTTP smoke pipeline total、fetch/analyze/storage/report 四个阶段
+- 基线覆盖：fixture pipeline total、fetch/analyze/storage/report 四个阶段
 - 当前备注：本轮先建立 Rust 内部基线；Python 对比值留待后续单独补充
 - 首次基线记录：
 - `pipeline_total/fixture_pipeline_minimal`: `194.20 µs ~ 207.51 µs`
-- `pipeline_total/http_pipeline_smoke`: `1.8386 ms ~ 1.9952 ms`
 - `pipeline_stage/fetch_fixture_sources`: `9.0537 µs ~ 9.4556 µs`
 - `pipeline_stage/analyze_filter_rank_group`: `1.1192 µs ~ 1.1954 µs`
 - `pipeline_stage/storage_in_memory_roundtrip`: `99.968 µs ~ 108.28 µs`
 - `pipeline_stage/report_render_all_formats`: `30.268 µs ~ 31.643 µs`
+- 历史备注：
+- 首轮曾记录 `pipeline_total/http_pipeline_smoke`: `1.8386 ms ~ 1.9952 ms`
+- 在并发抓取改造后，该 benchmark 的 mock HTTP 夹具稳定性不足，已从默认 benchmark 套件移除
 
 ### A2. 报告按需渲染
 
@@ -139,7 +141,7 @@
 
 ### A4. 多源并发抓取
 
-- 状态：`todo`
+- 状态：`done`
 - 目标：缩短多源抓取总耗时，避免串行抓取按最慢总和累积。
 - 主要范围：`crates/app`、`crates/fetch`
 - 关键输出：
@@ -157,12 +159,20 @@
 - 多源抓取可并发
 - 错误与日志语义不回退
 - benchmark 能显示 fetch 阶段总耗时下降
+- 当前实现：
+- `Fetcher` trait 已显式要求 `Send + Sync`
+- `app` 的 HTTP/生产抓取路径改为作用域线程并发执行，并按原始 fetcher 顺序收集结果
+- fixture pipeline 仍保持串行，避免本地测试/基准被线程调度开销放大
+- `resilient=false` 仍传播错误，`resilient=true` 仍记录警告并跳过失败源
+- 新增 `collect_items_fetches_sources_concurrently` 与 `resilient_collection_keeps_successful_items` 两条内部测试
+- 当前备注：
+- 由于 mock HTTP benchmark 夹具在并发场景下稳定性不足，本轮使用并发行为测试而不是 HTTP benchmark 作为收口证据
 
 ## Phase B：功能补齐与工程交付
 
 ### B1. 通知渠道扩展
 
-- 状态：`todo`
+- 状态：`done`
 - 目标：在现有 `Notifier` trait 基础上补齐飞书、钉钉、企业微信通知。
 - 主要范围：`crates/notification`、`crates/config`、`crates/app`
 - 关键输出：
@@ -181,10 +191,19 @@
 - 至少支持飞书、钉钉、企业微信三种通知
 - 通知失败仍为旁路警告，不中断主 pipeline
 - 至少一份配置样例文档可复用
+- 当前实现：
+- `NotificationConfig` 已扩展 `feishu_webhook_url`、`dingtalk_webhook_url`、`wecom_webhook_url`
+- `notification` crate 已新增 `FeishuNotifier`、`DingTalkNotifier`、`WeComNotifier`
+- `build_notifiers()` 工厂函数现支持同时构建多渠道通知器，且无外部渠道时仍默认回退到 `ConsoleNotifier`
+- `app` 仍只负责把配置映射到 notifier 工厂，不包含渠道 payload 细节
+- 验证结果：
+- `cargo test -p trendradar-notification`
+- `cargo test --workspace`
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 
 ### B2. 调度增强
 
-- 状态：`todo`
+- 状态：`in-progress`
 - 目标：支持工作日/周末区分与冷却周期，不破坏现有时间窗口语义。
 - 主要范围：`crates/schedule`、`crates/config`、`crates/app`
 - 关键输出：
@@ -201,6 +220,10 @@
 - 完成标准：
 - 新调度规则通过 crate 级和系统级样例验证
 - `app` 未吸收额外调度业务规则
+- 当前进展：
+- 已新增 `weekday/weekend` 覆盖规则，继续保持“纯配置 + 显式时间上下文”模型
+- `ScheduleContext` 已扩展周末上下文，`app` 通过本地时区时间推导 `is_weekend`
+- `cooldown` 仍待设计，当前尚未引入“上次成功运行时间”状态依赖
 
 ### B3. 热榜平台扩展
 

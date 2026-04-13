@@ -15,6 +15,23 @@ pub struct ScheduleWindowConfig {
     pub end_hour: u8,
 }
 
+/// 工作日或周末调度覆盖配置。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct ScheduleOverrideConfig {
+    /// 可选覆盖抓取阶段开关。
+    #[serde(default)]
+    pub collect: Option<bool>,
+    /// 可选覆盖分析阶段开关。
+    #[serde(default)]
+    pub analyze: Option<bool>,
+    /// 可选覆盖推送阶段开关。
+    #[serde(default)]
+    pub push: Option<bool>,
+    /// 可选覆盖时间窗口。
+    #[serde(default)]
+    pub window: Option<ScheduleWindowConfig>,
+}
+
 /// 调度配置。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ScheduleConfig {
@@ -27,6 +44,12 @@ pub struct ScheduleConfig {
     /// 可选的本地时区小时窗口。
     #[serde(default)]
     pub window: Option<ScheduleWindowConfig>,
+    /// 工作日覆盖规则。
+    #[serde(default)]
+    pub weekday: Option<ScheduleOverrideConfig>,
+    /// 周末覆盖规则。
+    #[serde(default)]
+    pub weekend: Option<ScheduleOverrideConfig>,
 }
 
 impl Default for ScheduleConfig {
@@ -36,6 +59,8 @@ impl Default for ScheduleConfig {
             analyze: true,
             push: true,
             window: None,
+            weekday: None,
+            weekend: None,
         }
     }
 }
@@ -103,6 +128,15 @@ pub struct NotificationConfig {
     /// Webhook URL。
     #[serde(default)]
     pub webhook_url: Option<String>,
+    /// 飞书 Webhook URL。
+    #[serde(default)]
+    pub feishu_webhook_url: Option<String>,
+    /// 钉钉 Webhook URL。
+    #[serde(default)]
+    pub dingtalk_webhook_url: Option<String>,
+    /// 企业微信 Webhook URL。
+    #[serde(default)]
+    pub wecom_webhook_url: Option<String>,
 }
 
 impl Default for AppConfig {
@@ -135,7 +169,19 @@ pub fn validate_config(config: AppConfig) -> Result<AppConfig> {
             message: "timezone must be a valid IANA timezone".to_owned(),
         })?;
 
-    if let Some(window) = &config.schedule.window {
+    validate_schedule_window(config.schedule.window.as_ref())?;
+    if let Some(weekday) = &config.schedule.weekday {
+        validate_schedule_window(weekday.window.as_ref())?;
+    }
+    if let Some(weekend) = &config.schedule.weekend {
+        validate_schedule_window(weekend.window.as_ref())?;
+    }
+
+    Ok(config)
+}
+
+fn validate_schedule_window(window: Option<&ScheduleWindowConfig>) -> Result<()> {
+    if let Some(window) = window {
         if window.start_hour > 23 || window.end_hour > 23 {
             return Err(TrendRadarError::InvalidConfig {
                 message: "schedule window hours must be between 0 and 23".to_owned(),
@@ -149,7 +195,7 @@ pub fn validate_config(config: AppConfig) -> Result<AppConfig> {
         }
     }
 
-    Ok(config)
+    Ok(())
 }
 
 /// 从 JSON 字符串加载配置。
@@ -227,6 +273,8 @@ mod tests {
                     analyze: true,
                     push: false,
                     window: None,
+                    weekday: None,
+                    weekend: None,
                 },
                 rss_feeds: Vec::new(),
                 hotlist_apis: Vec::new(),
@@ -317,6 +365,48 @@ mod tests {
         assert!(config.platforms.is_empty());
         assert!(config.rss_feeds.is_empty());
         assert!(config.hotlist_apis.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn notification_channels_load_from_json() -> Result<(), Box<dyn Error>> {
+        let input = r#"{
+            "timezone":"Asia/Shanghai",
+            "notification":{
+                "enabled":true,
+                "webhook_url":"https://hooks.example.com/webhook",
+                "feishu_webhook_url":"https://open.feishu.cn/webhook",
+                "dingtalk_webhook_url":"https://oapi.dingtalk.com/robot/send",
+                "wecom_webhook_url":"https://qyapi.weixin.qq.com/cgi-bin/webhook/send"
+            }
+        }"#;
+        let config = load_config_from_json_str(input)?;
+
+        assert!(config.notification.enabled);
+        assert_eq!(
+            config.notification.webhook_url.as_deref(),
+            Some("https://hooks.example.com/webhook")
+        );
+        assert_eq!(
+            config.notification.feishu_webhook_url.as_deref(),
+            Some("https://open.feishu.cn/webhook")
+        );
+        assert_eq!(
+            config.notification.dingtalk_webhook_url.as_deref(),
+            Some("https://oapi.dingtalk.com/robot/send")
+        );
+        assert_eq!(
+            config.notification.wecom_webhook_url.as_deref(),
+            Some("https://qyapi.weixin.qq.com/cgi-bin/webhook/send")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn missing_notification_channels_default_to_none() -> Result<(), Box<dyn Error>> {
+        let config = load_config_from_json_str(r#"{"timezone":"Asia/Shanghai"}"#)?;
+
+        assert_eq!(config.notification, NotificationConfig::default());
         Ok(())
     }
 

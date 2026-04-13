@@ -45,7 +45,13 @@ fn daytime_schedule_window_allows_in_window_hour() -> Result<()> {
     let fixture = read_system_fixture("schedule/window-daytime.json")?;
     let config = load_config_from_json_str(&fixture)?;
 
-    let decision = decision_from_config_at(&config, ScheduleContext { local_hour: 10 });
+    let decision = decision_from_config_at(
+        &config,
+        ScheduleContext {
+            local_hour: 10,
+            is_weekend: false,
+        },
+    );
 
     assert!(decision.collect);
     assert!(decision.analyze);
@@ -58,7 +64,13 @@ fn overnight_schedule_window_blocks_out_of_window_hour() -> Result<()> {
     let fixture = read_system_fixture("schedule/window-overnight.json")?;
     let config = load_config_from_json_str(&fixture)?;
 
-    let decision = decision_from_config_at(&config, ScheduleContext { local_hour: 12 });
+    let decision = decision_from_config_at(
+        &config,
+        ScheduleContext {
+            local_hour: 12,
+            is_weekend: false,
+        },
+    );
 
     assert!(!decision.collect);
     assert!(!decision.analyze);
@@ -71,7 +83,13 @@ fn overnight_schedule_window_allows_in_window_hour() -> Result<()> {
     let fixture = read_system_fixture("schedule/window-overnight.json")?;
     let config = load_config_from_json_str(&fixture)?;
 
-    let decision = decision_from_config_at(&config, ScheduleContext { local_hour: 23 });
+    let decision = decision_from_config_at(
+        &config,
+        ScheduleContext {
+            local_hour: 23,
+            is_weekend: false,
+        },
+    );
 
     assert!(decision.collect);
     assert!(!decision.analyze);
@@ -84,7 +102,13 @@ fn missing_schedule_uses_default_gate_in_system_layer() -> Result<()> {
     let fixture = read_system_fixture("config/minimal-valid-no-schedule.json")?;
     let config = load_config_from_json_str(&fixture)?;
 
-    let decision = decision_from_config_at(&config, ScheduleContext { local_hour: 10 });
+    let decision = decision_from_config_at(
+        &config,
+        ScheduleContext {
+            local_hour: 10,
+            is_weekend: false,
+        },
+    );
 
     assert!(decision.collect);
     assert!(decision.analyze);
@@ -109,7 +133,13 @@ fn daytime_schedule_window_blocks_out_of_window_hour() -> Result<()> {
     let fixture = read_system_fixture("schedule/window-daytime.json")?;
     let config = load_config_from_json_str(&fixture)?;
 
-    let decision = decision_from_config_at(&config, ScheduleContext { local_hour: 20 });
+    let decision = decision_from_config_at(
+        &config,
+        ScheduleContext {
+            local_hour: 20,
+            is_weekend: false,
+        },
+    );
 
     assert!(!decision.collect);
     assert!(!decision.analyze);

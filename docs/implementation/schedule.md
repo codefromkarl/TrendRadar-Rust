@@ -43,7 +43,8 @@
 - 已可从 `AppConfig.schedule` 映射到 `ScheduleDecision`
 - 已用显式配置和 `fixtures/system/config/minimal-valid.json` 覆盖最小样例
 - 已新增 `fixtures/system/schedule/` 覆盖白天窗口、跨午夜窗口、相等小时非法窗口和越界小时非法窗口
-- 时间窗口当前仅支持本地小时级表达，尚未进入工作日、冷却周期等更复杂规则
+- 已进入 `weekday/weekend` 覆盖规则实现，仍保持显式上下文注入
+- `cooldown` 仍未进入实现，等待状态来源设计
 
 ## 验证命令
 

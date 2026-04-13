@@ -88,11 +88,20 @@ Wave 5 补齐生产就绪化，新增以下边界约束：
 Wave 6 完成首版闭合，新增以下边界约束：
 
 - `report` 新增 `render_news_html()` 生成自包含 HTML5，不引入外部模板引擎；HTML 输出通过 `html_escape()` 防 XSS
-- `notification` 作为独立 crate，不依赖 `config` 或 `app`；通过 `build_notifiers(enabled, webhook_url)` 工厂函数解耦配置
+- `notification` 作为独立 crate，不依赖 `config` 或 `app`；通过 `build_notifiers(...)` 工厂函数解耦配置
 - `app` 的输出格式由 CLI `--output` 参数控制（`json` / `html` / `both`），不硬编码在配置文件中
 - `app` 的通知在 pipeline push 阶段触发，通知失败仅记录警告不中断 pipeline（通知是旁路，不是主路径）
 - `notification` 默认回退到 `ConsoleNotifier`（不配置 webhook 时），确保通知不会静默丢失
 - `AppConfig.notification` 使用 `#[serde(default)]`，现有配置文件无需修改即可升级
+
+## Wave 8 边界证据
+
+Wave 8 完成多通知渠道扩展，新增以下边界约束：
+
+- `notification` crate 新增 `FeishuNotifier`、`DingTalkNotifier`、`WeComNotifier`，渠道 payload 细节仍封装在 crate 内部
+- `build_notifiers(...)` 支持同时构建 webhook、飞书、钉钉、企业微信多个通知器
+- `config` 只暴露 URL 级配置字段，不把各渠道协议逻辑泄漏到 `app`
+- `app` 仍只在 push 阶段调用 notifier 列表，通知失败保持 warn+skip 旁路语义
 
 ## Wave 7 边界证据
 

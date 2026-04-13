@@ -22,6 +22,7 @@
 - `schedule: ScheduleConfig`
 - `rss_feeds: Vec<RssFeedConfig>`（HTTP 模式）
 - `hotlist_apis: Vec<HotlistApiConfig>`（HTTP 模式）
+- `notification: NotificationConfig`
 
 必填字段：
 
@@ -34,6 +35,7 @@
 - `schedule.collect / analyze / push` 默认值均为 `true`
 - `schedule.window` 默认值为 `null`
 - `rss_feeds` 和 `hotlist_apis` 默认值为空数组
+- `notification` 默认值为 `NotificationConfig::default()`
 
 可延后字段：
 
@@ -49,6 +51,10 @@
 - `schedule.push: bool`
 - `schedule.window.start_hour: u8`
 - `schedule.window.end_hour: u8`
+- `schedule.weekday.collect/analyze/push: Option<bool>`
+- `schedule.weekday.window: Option<ScheduleWindowConfig>`
+- `schedule.weekend.collect/analyze/push: Option<bool>`
+- `schedule.weekend.window: Option<ScheduleWindowConfig>`
 
 当前语义：
 
@@ -59,8 +65,8 @@
 当前保留边界：
 
 - 时区相关调度窗口
-- 工作日 / 小时段 / 冷却周期等复杂调度表达
-- 这些规则进入前，不影响当前布尔阶段开关落地
+- 工作日 / 周末覆盖规则
+- 冷却周期等带状态依赖的复杂调度表达
 
 非法配置的错误语义：
 
@@ -91,6 +97,15 @@ RSS 订阅列表：
 
 - 当前尚未进入实现
 - 在进入 `report` 与 `app` 集成前，不阻塞 `config` 最小闭环
+
+通知配置：
+
+- `notification.enabled: bool`
+- `notification.webhook_url: Option<String>`
+- `notification.feishu_webhook_url: Option<String>`
+- `notification.dingtalk_webhook_url: Option<String>`
+- `notification.wecom_webhook_url: Option<String>`
+- 所有通知渠道字段缺失时默认回落为 `None`
 
 ## 错误契约
 
