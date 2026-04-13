@@ -726,6 +726,114 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn concurrent_resilient_collection_keeps_multiple_successes_with_multiple_failures()
+    -> anyhow::Result<()> {
+        let active = Arc::new(AtomicUsize::new(0));
+        let max_active = Arc::new(AtomicUsize::new(0));
+        let fetchers: Vec<Box<dyn Fetcher>> = vec![
+            Box::new(ProbeFetcher {
+                source_id: "weibo".to_owned(),
+                active: Arc::clone(&active),
+                max_active: Arc::clone(&max_active),
+                sleep_for: Duration::from_millis(60),
+            }),
+            Box::new(ErrorFetcher),
+            Box::new(ProbeFetcher {
+                source_id: "rss".to_owned(),
+                active: Arc::clone(&active),
+                max_active: Arc::clone(&max_active),
+                sleep_for: Duration::from_millis(20),
+            }),
+            Box::new(ErrorFetcher),
+        ];
+
+        let result = run_pipeline_with_fetchers(
+            &test_config(),
+            chrono::Utc::now(),
+            &fetchers,
+            None,
+            true,
+            true,
+            OutputMode::All,
+        )?;
+
+        assert!(
+            max_active.load(Ordering::SeqCst) >= 2,
+            "successful fetchers should overlap even when failures are present"
+        );
+        assert_eq!(result.collected_items.len(), 2);
+        assert_eq!(result.stored_items.len(), 2);
+
+        let collected_sources: Vec<&str> = result
+            .collected_items
+            .iter()
+            .map(|item| item.source_id.as_str())
+            .collect();
+        assert_eq!(collected_sources, vec!["weibo", "rss"]);
+
+        let stored_sources: Vec<&str> = result
+            .stored_items
+            .iter()
+            .map(|item| item.source_id.as_str())
+            .collect();
+        assert_eq!(
+            stored_sources,
+            vec!["rss", "weibo"],
+            "stored output should stay stable regardless of fetch completion order"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn concurrent_resilient_collection_stable_output_ignores_fetcher_order() -> anyhow::Result<()> {
+        let active = Arc::new(AtomicUsize::new(0));
+        let max_active = Arc::new(AtomicUsize::new(0));
+        let fetchers: Vec<Box<dyn Fetcher>> = vec![
+            Box::new(ProbeFetcher {
+                source_id: "zhihu".to_owned(),
+                active: Arc::clone(&active),
+                max_active: Arc::clone(&max_active),
+                sleep_for: Duration::from_millis(10),
+            }),
+            Box::new(ProbeFetcher {
+                source_id: "bilibili".to_owned(),
+                active: Arc::clone(&active),
+                max_active: Arc::clone(&max_active),
+                sleep_for: Duration::from_millis(70),
+            }),
+            Box::new(ErrorFetcher),
+            Box::new(ProbeFetcher {
+                source_id: "baidu".to_owned(),
+                active,
+                max_active,
+                sleep_for: Duration::from_millis(40),
+            }),
+        ];
+
+        let result = run_pipeline_with_fetchers(
+            &test_config(),
+            chrono::Utc::now(),
+            &fetchers,
+            None,
+            true,
+            true,
+            OutputMode::All,
+        )?;
+
+        let stored_sources: Vec<&str> = result
+            .stored_items
+            .iter()
+            .map(|item| item.source_id.as_str())
+            .collect();
+        assert_eq!(
+            stored_sources,
+            vec!["baidu", "bilibili", "zhihu"],
+            "stored ordering should be deterministic under concurrent collection"
+        );
+        Ok(())
+    }
+
     fn unique_test_dir(name: &str) -> PathBuf {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
