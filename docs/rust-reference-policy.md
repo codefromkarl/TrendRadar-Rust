@@ -2,11 +2,11 @@
 
 ## 当前固定版本
 
-当前项目将 Rust toolchain 固定为 `1.85.0`。
+当前项目将 Rust toolchain 固定为 `1.94.1`。
 
 固定方式：
 
-- `rust-toolchain.toml` 中将 `channel` 设为 `1.85.0`
+- `rust-toolchain.toml` 中将 `channel` 设为 `1.94.1`
 - 同时纳入 `rustfmt`、`clippy`、`rust-analyzer`、`rust-src`、`rust-docs`
 
 这样做的目的不是追求最新，而是保证：
@@ -19,7 +19,7 @@
 
 当前项目选择将 `rust-docs` 作为固定 toolchain 的组成部分。
 
-这意味着本地会存在与 `1.85.0` 对应的一套离线官方文档，而不是完全依赖在线 `stable` 页面。
+这意味着本地会存在与 `1.94.1` 对应的一套离线官方文档，而不是完全依赖在线 `stable` 页面。
 
 项目内额外补充了一个辅助脚本：
 

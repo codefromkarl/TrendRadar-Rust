@@ -9,8 +9,8 @@
 | 配置格式 | YAML (`config.yaml`) | JSON (`config.json`) |
 | 运行方式 | `python main.py` | `trendradar` |
 | 数据存储 | SQLite (文件) | SQLite (文件) |
-| 输出格式 | HTML / JSON | JSON / HTML |
-| 通知渠道 | 9 种 | 1 种 (webhook) + console |
+| 输出格式 | HTML / JSON | JSON / HTML / Table / Markdown |
+| 通知渠道 | 9 种 | 5 种（webhook / console / 飞书 / 钉钉 / 企业微信） |
 
 ## 配置字段映射
 
@@ -103,15 +103,11 @@ Rust 版本按以下顺序搜索配置文件（无需手动指定 `--config`）�
 
 ## 不再支持的功能
 
-以下 Python 功能在 Rust 首版中明确不迁移：
+以下 Python 功能在 Rust 当前版本中仍未迁移：
 
 - ❌ AI 分析 / AI 翻译
 - ❌ MCP Server
-- ❌ 多通知渠道（飞书/钉钉/企业微信/Telegram/Email/ntfy/Bark/Slack）
-- ❌ 自动打开浏览器
-- ❌ 版本在线检查
-- ❌ Docker 集成
-- ❌ 多通知渠道（飞书/钉钉/企业微信/Telegram/Email/ntfy/Bark/Slack）
+- ❌ 更大范围的通知渠道（Telegram/Email/ntfy/Bark/Slack）
 - ❌ 自动打开浏览器
 - ❌ 版本在线检查
 - ❌ Docker 集成

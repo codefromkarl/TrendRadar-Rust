@@ -89,8 +89,8 @@ components = ["rustfmt", "clippy", "rust-analyzer", "rust-src", "rust-docs"]
 set -euo pipefail
 
 rustup set profile default
-rustup toolchain install 1.85.0 --component rustfmt --component clippy --component rust-analyzer --component rust-src --component rust-docs
-rustup default 1.85.0
+rustup toolchain install 1.94.1 --component rustfmt --component clippy --component rust-analyzer --component rust-src --component rust-docs
+rustup default 1.94.1
 
 cargo install just
 cargo install cargo-nextest --version 0.9.100 --locked
@@ -105,7 +105,7 @@ cargo install cargo-watch
 bash ./scripts/install_githooks.sh
 ```
 
-这里显式锁定兼容版本，是因为当前仓库固定在 `Rust 1.85.0`。如果直接安装这些工具的最新版，会碰到它们各自更高的 MSRV 要求。
+这里显式锁定兼容版本，是因为当前仓库固定在 `Rust 1.94.1`。如果直接安装这些工具的最新版，仍可能碰到它们各自额外的 MSRV 或兼容性变化。
 
 如果本机只想先完成环境准备，而不立即安装全部扩展工具，可以先通过环境检查脚本确认缺口：
 

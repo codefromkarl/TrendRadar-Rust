@@ -44,7 +44,7 @@ TrendRadar Rust 不是把旧系统逐文件翻译成 Rust，而是围绕“配�
 ## 当前核心能力
 
 - **Workspace 基线**：8 个 crate 已按职责拆分，围绕领域、配置、调度、分析、存储、抓取、报告和应用编排建立工作区骨架。
-- **固定工具链**：仓库固定 Rust `1.85.0`，并显式纳入 `rustfmt`、`clippy`、`rust-analyzer`、`rust-docs` 等组件。
+- **固定工具链**：仓库固定 Rust `1.94.1`，并显式纳入 `rustfmt`、`clippy`、`rust-analyzer`、`rust-docs` 等组件。
 - **验证闭环**：`just env-check`、`just verify-basic`、`just verify` 和 `just doc` 提供环境检查、基础验证、完整验证和文档生成入口。
 - **协作约束**：`.githooks/`、`.gitmessage`、分支规范和提交规范已经落地，适合并行迁移阶段使用。
 - **迁移基线文档**：架构、模块映射、不变量、契约和并行迁移方案已经进入 `docs/`，可以作为后续实现与审查的统一参照。
@@ -61,20 +61,20 @@ flowchart LR
   F --> G[Report]
 ```
 
-当前已经落地并验证的是两条链路：`config -> app::bootstrap` 的基础启动校验，以及基于 fixture 的 `config -> fetch -> analyze -> storage -> report` 最小闭环。与此同时，Wave 3 已开始围绕 `domain`、`schedule`、`analyze`、`fetch`、`storage`、`report`、`app` 补边界样例与系统 fixture，使核心 crate 的行为不只“能跑通”，也“可复查”。更复杂的抓取策略、持久化形态和报告能力仍按迁移计划逐步进入 Rust 内核，而不是一次性重写整套旧系统。
+当前已经落地并验证的是两条链路：`config -> app::bootstrap` 的基础启动校验，以及基于 fixture 和 HTTP 配置的 `config -> fetch -> analyze -> storage -> report` 闭环。与此同时，仓库已补齐多平台热榜 parser、工作日 / 周末调度与冷却周期、多通知渠道以及稳定 CLI 退出码，使核心 crate 的行为不只“能跑通”，也“可复查”。更复杂的生态能力仍按迁移计划逐步进入 Rust 内核，而不是一次性重写整套旧系统。
 
 ## 当前状态
 
-- 当前阶段：迁移基线收敛，已进入 Wave 3 边界样例扩展
-- 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 启动链路、`config -> fetch -> analyze -> storage -> report` fixture 系统链路、多个 crate 级边界样例，以及根级 `tests/system/` 下 62 条成功路径 / 空输入 / 错误路径 / 阶段组合样例
+- 当前阶段：v1.2 工程收口，已完成 Wave 8 级别的核心功能补齐
+- 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 启动链路、`config -> fetch -> analyze -> storage -> report` 的 fixture / HTTP 系统链路、多个 crate 级边界样例，以及根级 `tests/system/` 下 62 条成功路径 / 空输入 / 错误路径 / 阶段组合样例；当前全工作区共 196 tests 通过
 - 已建立内容：CI 基础验证、系统测试模板、Git hooks、提交模板、并行迁移规则
-- 当前不包含：完整抓取链路、真实存储实现、完整报告层、通知渠道、AI / MCP 扩展能力
+- 当前不包含：远程对象存储、AI / MCP 扩展能力、完整安装与分发入口，以及更大范围的生态接入
 
 ## 快速开始
 
 ### 环境要求
 
-- Rust `1.85.0`
+- Rust `1.94.1`
 - `just`
 - `cargo-nextest`
 - `cargo-llvm-cov`

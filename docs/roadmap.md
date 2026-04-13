@@ -1,12 +1,12 @@
 # TrendRadar Rust 路线图
 
 > 首版闭合后（Wave 6），记录后续任务方向与优先级。
-> 最后更新：Wave 7 完成后（v1.1.0）
+> 最后更新：Wave 8 / B4 完成后
 
 ## 当前状态
 
-- v1.1.0 首版增强已完成（Wave 7）
-- 161 tests passed, 0 clippy issues
+- v1.2 功能补齐已进入文档校准阶段
+- 196 tests passed, 0 clippy issues
 - Release binary: 9.6MB
 - CLI: `--config/--db/--output/--verbose/--dry-run/--help/--version`
 - 输出格式: `json / html / both / table / markdown`
@@ -42,7 +42,7 @@
 #### E2: 终端彩色表格输出
 
 - **目标**: `--output table` 彩色终端友好输出
-- **依赖**: `comfy-table` crate（7.1.1，兼容 Rust 1.85）
+- **依赖**: `comfy-table` crate（7.1.1，兼容当前 toolchain）
 - **状态**: ✅ 已完成（Wave 7）
 
 #### E3: Markdown 输出格式
@@ -54,9 +54,9 @@
 #### E4: 更多通知渠道
 
 - **目标**: 飞书/钉钉/企业微信通知适配
-- **当前**: 仅 Webhook + Console
+- **当前**: Webhook + Console + 飞书 + 钉钉 + 企业微信
 - **架构**: `Notifier` trait 已就位，新增实现即可
-- **状态**: ⬜ 待办
+- **状态**: ✅ 已完成
 
 #### O2: 跨平台构建
 
@@ -80,8 +80,8 @@
 #### E5: 工作日调度/冷却周期
 
 - **目标**: schedule 支持工作日/周末区分、冷却时间间隔
-- **当前**: 布尔开关 + 时间窗口
-- **状态**: ⬜ 待办
+- **当前**: 已支持时间窗口 + weekday/weekend 覆盖 + cooldown_minutes
+- **状态**: ✅ 已完成
 
 #### E6: 性能 Benchmark
 
@@ -149,8 +149,8 @@ v1.1.0 — 首版增强（已完成 Wave 7）
 └── ✅ O2: 跨平台构建（合并到 release.yml）
 
 v1.2.0 — 通知与调度扩展
-├── E4: 飞书/钉钉/企业微信通知
-├── E5: 工作日调度/冷却周期
+├── ✅ E4: 飞书/钉钉/企业微信通知
+├── ✅ E5: 工作日调度/冷却周期
 ├── ✅ O4: 错误码规范
 ├── O3: 安装脚本
 └── E6: 性能 benchmark

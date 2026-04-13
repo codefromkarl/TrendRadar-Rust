@@ -44,7 +44,7 @@
 | JSON / 结构化输出 | `report` | 中 | 直接实现最小版本 | 对固定内部模型输出稳定结果 |
 | CLI 与运行编排 | `app` | 高 | 薄编排 | 能串起配置、抓取、分析、存储和输出的最小闭环，且业务规则仍留在上游 crate |
 | HTML 报告 | `report` | 中 | Wave 6 已实现精简 HTML | 自包含 HTML5，内联 CSS，XSS 转义 |
-| 通知渠道 | `notification` | 中 | Wave 6 已实现核心渠道 | `Notifier` trait + WebhookNotifier + ConsoleNotifier |
+| 通知渠道 | `notification` | 中 | Wave 8 已实现核心渠道 | `Notifier` trait + Webhook / Console / Feishu / DingTalk / WeCom |
 | MCP / AI / 翻译 | 暂不进入核心 crate | 低 | 延后 | 首版不迁移 |
 | 版本检查 / 自动开浏览器 / 复杂环境分支 | 不迁移 | 无 | 删除 | 不进入 Rust 首版 |
 
