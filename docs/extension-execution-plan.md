@@ -203,7 +203,7 @@
 
 ### B2. 调度增强
 
-- 状态：`in-progress`
+- 状态：`done`
 - 目标：支持工作日/周末区分与冷却周期，不破坏现有时间窗口语义。
 - 主要范围：`crates/schedule`、`crates/config`、`crates/app`
 - 关键输出：
@@ -222,8 +222,9 @@
 - `app` 未吸收额外调度业务规则
 - 当前进展：
 - 已新增 `weekday/weekend` 覆盖规则，继续保持“纯配置 + 显式时间上下文”模型
-- `ScheduleContext` 已扩展周末上下文，`app` 通过本地时区时间推导 `is_weekend`
-- `cooldown` 仍待设计，当前尚未引入“上次成功运行时间”状态依赖
+- `ScheduleContext` 已扩展 `is_weekend/current_time/last_success_at`
+- `cooldown_minutes` 已进入 `ScheduleConfig`，`app` 通过本地 sidecar 状态文件显式提供 `last_success_at`
+- `schedule` 仍保持纯逻辑，不直接读取文件系统或系统时间
 
 ### B3. 热榜平台扩展
 

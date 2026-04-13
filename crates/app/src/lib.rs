@@ -5,6 +5,7 @@ use std::thread;
 use std::time::Duration;
 
 use chrono::{DateTime, Datelike, Timelike, Utc, Weekday};
+use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 use trendradar_analyze::{
     RankedNews, SourceSummary, filter_by_keywords, group_news_by_source, rank_news,
@@ -24,6 +25,13 @@ use trendradar_storage::{NewsRepository, SqliteNewsRepository};
 
 /// 默认数据库文件名。
 const DEFAULT_DB_FILENAME: &str = "trendradar.db";
+/// 冷却状态文件名。
+const DEFAULT_COOLDOWN_STATE_FILENAME: &str = "trendradar.cooldown.json";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct CooldownState {
+    last_success_at: DateTime<Utc>,
+}
 
 /// 返回应用标识。
 #[must_use]
@@ -177,7 +185,7 @@ fn run_pipeline_with_fetchers(
     bootstrap_with_config(config)?;
     info!(timezone = %config.timezone, "bootstrap completed");
 
-    let decision = compute_decision(config, started_at)?;
+    let decision = compute_decision(config, started_at, db_path)?;
     info!(
         collect = decision.collect,
         analyze = decision.analyze,
@@ -291,6 +299,10 @@ fn run_pipeline_with_fetchers(
         (None, None, None, None)
     };
 
+    if decision.collect || decision.analyze || decision.push {
+        write_cooldown_state(db_path, started_at)?;
+    }
+
     Ok(PipelineResult {
         decision,
         collected_items,
@@ -366,13 +378,16 @@ fn collect_items_sequentially(
 fn compute_decision(
     config: &AppConfig,
     started_at: DateTime<Utc>,
+    db_path: Option<&Path>,
 ) -> anyhow::Result<ScheduleDecision> {
+    let last_success_at = read_last_success_at(db_path);
     match (
         config.schedule.window.is_some(),
+        config.schedule.cooldown_minutes.is_some(),
         config.schedule.weekday.is_some(),
         config.schedule.weekend.is_some(),
     ) {
-        (true, _, _) | (_, true, _) | (_, _, true) => {
+        (true, _, _, _) | (_, true, _, _) | (_, _, true, _) | (_, _, _, true) => {
             let timezone: chrono_tz::Tz = config
                 .timezone
                 .parse()
@@ -383,11 +398,46 @@ fn compute_decision(
                 ScheduleContext {
                     local_hour: local_time.hour() as u8,
                     is_weekend: matches!(local_time.weekday(), Weekday::Sat | Weekday::Sun),
+                    current_time: started_at,
+                    last_success_at,
                 },
             ))
         }
-        (false, false, false) => Ok(decision_from_config(config)),
+        (false, false, false, false) => Ok(decision_from_config(config)),
     }
+}
+
+fn cooldown_state_path(db_path: Option<&Path>) -> Option<PathBuf> {
+    db_path.map(|path| {
+        path.parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(DEFAULT_COOLDOWN_STATE_FILENAME)
+    })
+}
+
+fn read_last_success_at(db_path: Option<&Path>) -> Option<DateTime<Utc>> {
+    let path = cooldown_state_path(db_path)?;
+    let contents = std::fs::read_to_string(path).ok()?;
+    let state: CooldownState = serde_json::from_str(&contents).ok()?;
+    Some(state.last_success_at)
+}
+
+fn write_cooldown_state(
+    db_path: Option<&Path>,
+    last_success_at: DateTime<Utc>,
+) -> anyhow::Result<()> {
+    let Some(path) = cooldown_state_path(db_path) else {
+        return Ok(());
+    };
+
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let state = CooldownState { last_success_at };
+    let json = serde_json::to_string_pretty(&state)?;
+    std::fs::write(path, json)?;
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -552,7 +602,12 @@ pub fn default_db_path(config_path: Option<&Path>) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::{OutputMode, collect_items, run_pipeline_with_fetchers};
+    use super::{
+        OutputMode, collect_items, read_last_success_at, run_pipeline_with_fetchers,
+        write_cooldown_state,
+    };
+    use chrono::TimeZone;
+    use std::path::PathBuf;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
@@ -602,6 +657,7 @@ mod tests {
                 analyze: false,
                 push: false,
                 window: None,
+                cooldown_minutes: None,
                 weekday: None,
                 weekend: None,
             },
@@ -667,6 +723,59 @@ mod tests {
 
         assert_eq!(result.collected_items.len(), 1);
         assert_eq!(result.collected_items[0].source_id, "rss");
+        Ok(())
+    }
+
+    fn unique_test_dir(name: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_else(|_| std::time::Duration::from_secs(0))
+            .as_nanos();
+        std::env::temp_dir().join(format!("trendradar-{name}-{nanos}"))
+    }
+
+    #[test]
+    fn cooldown_state_blocks_recent_config_runs() -> anyhow::Result<()> {
+        let base_dir = unique_test_dir("cooldown");
+        std::fs::create_dir_all(&base_dir)?;
+        let db_path = base_dir.join("trendradar.db");
+        let started_at = chrono::Utc
+            .with_ymd_and_hms(2026, 4, 14, 10, 0, 0)
+            .single()
+            .ok_or_else(|| anyhow::anyhow!("invalid fixed timestamp"))?;
+        let last_success_at = chrono::Utc
+            .with_ymd_and_hms(2026, 4, 14, 9, 45, 0)
+            .single()
+            .ok_or_else(|| anyhow::anyhow!("invalid fixed timestamp"))?;
+
+        let mut config = test_config();
+        config.schedule.cooldown_minutes = Some(30);
+
+        write_cooldown_state(Some(&db_path), last_success_at)?;
+
+        let active = Arc::new(AtomicUsize::new(0));
+        let max_active = Arc::new(AtomicUsize::new(0));
+        let fetchers: Vec<Box<dyn Fetcher>> = vec![Box::new(ProbeFetcher {
+            source_id: "weibo".to_owned(),
+            active,
+            max_active,
+            sleep_for: Duration::from_millis(10),
+        })];
+
+        let result = run_pipeline_with_fetchers(
+            &config,
+            started_at,
+            &fetchers,
+            Some(&db_path),
+            true,
+            true,
+            OutputMode::All,
+        )?;
+
+        assert!(result.collected_items.is_empty());
+        assert_eq!(read_last_success_at(Some(&db_path)), Some(last_success_at));
+
+        let _ = std::fs::remove_dir_all(base_dir);
         Ok(())
     }
 }

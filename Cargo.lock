@@ -2091,6 +2091,7 @@ dependencies = [
  "clap",
  "criterion",
  "mockito",
+ "serde",
  "serde_json",
  "tracing",
  "tracing-subscriber",
@@ -2165,6 +2166,7 @@ dependencies = [
 name = "trendradar-schedule"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "serde",
  "serde_json",
  "trendradar-config",

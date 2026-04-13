@@ -25,6 +25,7 @@
 - `AppConfig.schedule.push`
 - `AppConfig.schedule.window.start_hour`
 - `AppConfig.schedule.window.end_hour`
+- `AppConfig.schedule.cooldown_minutes`
 - `AppConfig.schedule.weekday.*`
 - `AppConfig.schedule.weekend.*`
 
@@ -34,8 +35,11 @@
 - `schedule.weekday` / `schedule.weekend` 可按日类型覆盖阶段开关与窗口
 - `ScheduleContext.local_hour` 表示已按配置时区折算后的本地小时
 - `ScheduleContext.is_weekend` 表示当前本地时间是否落在周末
+- `ScheduleContext.current_time` 表示当前运行时间
+- `ScheduleContext.last_success_at` 表示上次成功运行时间
 - 当前窗口采用半开区间 `[start_hour, end_hour)` 语义
 - 当 `start_hour > end_hour` 时表示跨午夜窗口
+- 当存在 `cooldown_minutes` 且 `current_time < last_success_at + cooldown` 时，三个阶段均返回 `false`
 
 时区来源：
 
@@ -78,7 +82,7 @@
 
 如何注入测试时间：
 
-- 当前通过 `ScheduleContext { local_hour, is_weekend }` 注入
+- 当前通过 `ScheduleContext { local_hour, is_weekend, current_time, last_success_at }` 注入
 - 后续若引入更细粒度上下文，也应保持显式注入
 
 ## 错误契约
@@ -118,4 +122,4 @@ fixture：
 
 ## 开放问题
 
-- `weekday/weekend` 已进入实现，`cooldown` 仍待定义状态来源与持久化边界
+- `cooldown` 的状态来源当前由 `app` 层 sidecar 文件提供；如果后续改为数据库或远程状态，需要保持 `schedule` 层的显式上下文契约不变

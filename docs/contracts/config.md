@@ -51,6 +51,7 @@
 - `schedule.push: bool`
 - `schedule.window.start_hour: u8`
 - `schedule.window.end_hour: u8`
+- `schedule.cooldown_minutes: u64?`
 - `schedule.weekday.collect/analyze/push: Option<bool>`
 - `schedule.weekday.window: Option<ScheduleWindowConfig>`
 - `schedule.weekend.collect/analyze/push: Option<bool>`

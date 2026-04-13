@@ -1,5 +1,6 @@
 //! 调度解析骨架。
 
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use trendradar_config::{AppConfig, ScheduleConfig, ScheduleOverrideConfig, ScheduleWindowConfig};
 
@@ -31,6 +32,10 @@ pub struct ScheduleContext {
     pub local_hour: u8,
     /// 当前是否为周末。
     pub is_weekend: bool,
+    /// 当前运行时间。
+    pub current_time: DateTime<Utc>,
+    /// 上次成功运行时间。
+    pub last_success_at: Option<DateTime<Utc>>,
 }
 
 /// 从调度配置生成决策。
@@ -66,6 +71,17 @@ fn active_override(
     }
 }
 
+fn cooldown_active(schedule: &ScheduleConfig, context: ScheduleContext) -> bool {
+    let Some(cooldown_minutes) = schedule.cooldown_minutes else {
+        return false;
+    };
+    let Some(last_success_at) = context.last_success_at else {
+        return false;
+    };
+
+    context.current_time < last_success_at + Duration::minutes(cooldown_minutes as i64)
+}
+
 /// 从调度配置和显式上下文生成决策。
 #[must_use]
 pub fn decision_from_schedule_at(
@@ -94,6 +110,11 @@ pub fn decision_from_schedule_at(
             analyze: false,
             push: false,
         },
+        _ if cooldown_active(schedule, context) => ScheduleDecision {
+            collect: false,
+            analyze: false,
+            push: false,
+        },
         _ => base,
     }
 }
@@ -113,6 +134,7 @@ pub fn decision_from_config_at(config: &AppConfig, context: ScheduleContext) -> 
 #[cfg(test)]
 mod tests {
     use super::{ScheduleContext, ScheduleDecision, decision_from_config, decision_from_config_at};
+    use chrono::{TimeZone, Utc};
     use std::error::Error;
     use std::fs::read_to_string;
     use trendradar_config::{
@@ -127,6 +149,15 @@ mod tests {
         )
     }
 
+    fn context(local_hour: u8) -> ScheduleContext {
+        ScheduleContext {
+            local_hour,
+            is_weekend: false,
+            current_time: Utc::now(),
+            last_success_at: None,
+        }
+    }
+
     #[test]
     fn decision_follows_explicit_schedule_flags() {
         let config = AppConfig {
@@ -137,6 +168,7 @@ mod tests {
                 analyze: true,
                 push: false,
                 window: None,
+                cooldown_minutes: None,
                 weekday: None,
                 weekend: None,
             },
@@ -176,13 +208,7 @@ mod tests {
         let config = load_config_from_json_str(&fixture)?;
 
         assert_eq!(
-            decision_from_config_at(
-                &config,
-                ScheduleContext {
-                    local_hour: 10,
-                    is_weekend: false,
-                },
-            ),
+            decision_from_config_at(&config, context(10)),
             ScheduleDecision {
                 collect: true,
                 analyze: true,
@@ -190,13 +216,7 @@ mod tests {
             }
         );
         assert_eq!(
-            decision_from_config_at(
-                &config,
-                ScheduleContext {
-                    local_hour: 20,
-                    is_weekend: false,
-                },
-            ),
+            decision_from_config_at(&config, context(20)),
             ScheduleDecision {
                 collect: false,
                 analyze: false,
@@ -212,13 +232,7 @@ mod tests {
         let config = load_config_from_json_str(&fixture)?;
 
         assert_eq!(
-            decision_from_config_at(
-                &config,
-                ScheduleContext {
-                    local_hour: 23,
-                    is_weekend: false,
-                },
-            ),
+            decision_from_config_at(&config, context(23)),
             ScheduleDecision {
                 collect: true,
                 analyze: false,
@@ -226,13 +240,7 @@ mod tests {
             }
         );
         assert_eq!(
-            decision_from_config_at(
-                &config,
-                ScheduleContext {
-                    local_hour: 12,
-                    is_weekend: false,
-                },
-            ),
+            decision_from_config_at(&config, context(12)),
             ScheduleDecision {
                 collect: false,
                 analyze: false,
@@ -252,6 +260,7 @@ mod tests {
                 analyze: true,
                 push: true,
                 window: None,
+                cooldown_minutes: None,
                 weekday: None,
                 weekend: Some(ScheduleOverrideConfig {
                     collect: Some(false),
@@ -273,6 +282,8 @@ mod tests {
                 ScheduleContext {
                     local_hour: 10,
                     is_weekend: true,
+                    current_time: Utc::now(),
+                    last_success_at: None,
                 },
             ),
             ScheduleDecision {
@@ -293,6 +304,7 @@ mod tests {
                 analyze: true,
                 push: true,
                 window: None,
+                cooldown_minutes: None,
                 weekday: Some(ScheduleOverrideConfig {
                     collect: None,
                     analyze: None,
@@ -312,11 +324,53 @@ mod tests {
         };
 
         assert_eq!(
+            decision_from_config_at(&config, context(20)),
+            ScheduleDecision {
+                collect: false,
+                analyze: false,
+                push: false,
+            }
+        );
+    }
+
+    #[test]
+    fn cooldown_blocks_run_within_window() -> Result<(), Box<dyn Error>> {
+        let current_time = Utc
+            .with_ymd_and_hms(2026, 4, 14, 10, 0, 0)
+            .single()
+            .ok_or("fixed current time must be valid")?;
+        let last_success_at = Utc
+            .with_ymd_and_hms(2026, 4, 14, 9, 30, 0)
+            .single()
+            .ok_or("fixed success time must be valid")?;
+
+        let config = AppConfig {
+            timezone: "Asia/Shanghai".to_owned(),
+            platforms: vec!["weibo".to_owned()],
+            schedule: ScheduleConfig {
+                collect: true,
+                analyze: true,
+                push: true,
+                window: None,
+                cooldown_minutes: Some(45),
+                weekday: None,
+                weekend: None,
+            },
+            rss_feeds: Vec::new(),
+            hotlist_apis: Vec::new(),
+            http_timeout_secs: 30,
+            keywords: Vec::new(),
+            notification: trendradar_config::NotificationConfig::default(),
+        };
+
+        assert_eq!(
             decision_from_config_at(
                 &config,
                 ScheduleContext {
-                    local_hour: 20,
+                    local_hour: 10,
                     is_weekend: false,
+                    current_time,
+                    last_success_at: Some(last_success_at),
                 },
             ),
             ScheduleDecision {
@@ -325,5 +379,55 @@ mod tests {
                 push: false,
             }
         );
+        Ok(())
+    }
+
+    #[test]
+    fn cooldown_allows_run_after_window_expires() -> Result<(), Box<dyn Error>> {
+        let current_time = Utc
+            .with_ymd_and_hms(2026, 4, 14, 10, 30, 0)
+            .single()
+            .ok_or("fixed current time must be valid")?;
+        let last_success_at = Utc
+            .with_ymd_and_hms(2026, 4, 14, 9, 30, 0)
+            .single()
+            .ok_or("fixed success time must be valid")?;
+
+        let config = AppConfig {
+            timezone: "Asia/Shanghai".to_owned(),
+            platforms: vec!["weibo".to_owned()],
+            schedule: ScheduleConfig {
+                collect: true,
+                analyze: false,
+                push: false,
+                window: None,
+                cooldown_minutes: Some(45),
+                weekday: None,
+                weekend: None,
+            },
+            rss_feeds: Vec::new(),
+            hotlist_apis: Vec::new(),
+            http_timeout_secs: 30,
+            keywords: Vec::new(),
+            notification: trendradar_config::NotificationConfig::default(),
+        };
+
+        assert_eq!(
+            decision_from_config_at(
+                &config,
+                ScheduleContext {
+                    local_hour: 10,
+                    is_weekend: false,
+                    current_time,
+                    last_success_at: Some(last_success_at),
+                },
+            ),
+            ScheduleDecision {
+                collect: true,
+                analyze: false,
+                push: false,
+            }
+        );
+        Ok(())
     }
 }

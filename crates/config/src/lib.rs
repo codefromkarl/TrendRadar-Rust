@@ -44,6 +44,9 @@ pub struct ScheduleConfig {
     /// 可选的本地时区小时窗口。
     #[serde(default)]
     pub window: Option<ScheduleWindowConfig>,
+    /// 冷却周期，单位分钟。
+    #[serde(default)]
+    pub cooldown_minutes: Option<u64>,
     /// 工作日覆盖规则。
     #[serde(default)]
     pub weekday: Option<ScheduleOverrideConfig>,
@@ -59,6 +62,7 @@ impl Default for ScheduleConfig {
             analyze: true,
             push: true,
             window: None,
+            cooldown_minutes: None,
             weekday: None,
             weekend: None,
         }
@@ -273,6 +277,7 @@ mod tests {
                     analyze: true,
                     push: false,
                     window: None,
+                    cooldown_minutes: None,
                     weekday: None,
                     weekend: None,
                 },
@@ -407,6 +412,23 @@ mod tests {
         let config = load_config_from_json_str(r#"{"timezone":"Asia/Shanghai"}"#)?;
 
         assert_eq!(config.notification, NotificationConfig::default());
+        Ok(())
+    }
+
+    #[test]
+    fn cooldown_minutes_load_from_json() -> Result<(), Box<dyn Error>> {
+        let input = r#"{
+            "timezone":"Asia/Shanghai",
+            "schedule":{
+                "collect":true,
+                "analyze":true,
+                "push":true,
+                "cooldown_minutes":45
+            }
+        }"#;
+        let config = load_config_from_json_str(input)?;
+
+        assert_eq!(config.schedule.cooldown_minutes, Some(45));
         Ok(())
     }
 

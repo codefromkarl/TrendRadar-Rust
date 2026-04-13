@@ -44,7 +44,7 @@
 - 已用显式配置和 `fixtures/system/config/minimal-valid.json` 覆盖最小样例
 - 已新增 `fixtures/system/schedule/` 覆盖白天窗口、跨午夜窗口、相等小时非法窗口和越界小时非法窗口
 - 已进入 `weekday/weekend` 覆盖规则实现，仍保持显式上下文注入
-- `cooldown` 仍未进入实现，等待状态来源设计
+- `cooldown_minutes` 已进入实现，`app` 层通过 sidecar 状态文件读取/写入上次成功运行时间
 
 ## 验证命令
 
