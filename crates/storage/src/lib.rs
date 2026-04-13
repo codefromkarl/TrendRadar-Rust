@@ -1,6 +1,7 @@
 //! 存储抽象：内存与文件 SQLite 仓储。
 
 use rusqlite::{Connection, params};
+use std::collections::BTreeMap;
 use std::path::Path;
 use trendradar_domain::TrendRadarError;
 use trendradar_domain::{NewsItem, Result};
@@ -163,9 +164,104 @@ impl NewsRepository for SqliteNewsRepository {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MockRemoteFailureMode {
+    None,
+    Save,
+    List,
+}
+
+/// 远程对象存储 mock 仓储。
+///
+/// 该类型仅用于远程对象存储契约演进阶段的测试和原型验证：
+///
+/// - 复用与 SQLite 一致的去重和排序语义
+/// - 模拟远程后端的写入 / 读取错误
+/// - 不承担真实网络 IO
+pub struct MockRemoteNewsRepository {
+    #[allow(dead_code)]
+    prefix: String,
+    items: BTreeMap<(String, String), u32>,
+    failure_mode: MockRemoteFailureMode,
+}
+
+impl MockRemoteNewsRepository {
+    /// 创建一个 mock 远程仓储。
+    #[must_use]
+    pub fn new(prefix: impl Into<String>) -> Self {
+        Self {
+            prefix: prefix.into(),
+            items: BTreeMap::new(),
+            failure_mode: MockRemoteFailureMode::None,
+        }
+    }
+
+    /// 创建一个写入失败的 mock 远程仓储。
+    #[must_use]
+    pub fn fail_on_save(prefix: impl Into<String>) -> Self {
+        Self {
+            prefix: prefix.into(),
+            items: BTreeMap::new(),
+            failure_mode: MockRemoteFailureMode::Save,
+        }
+    }
+
+    /// 创建一个读取失败的 mock 远程仓储。
+    #[must_use]
+    pub fn fail_on_list(prefix: impl Into<String>) -> Self {
+        Self {
+            prefix: prefix.into(),
+            items: BTreeMap::new(),
+            failure_mode: MockRemoteFailureMode::List,
+        }
+    }
+}
+
+impl NewsRepository for MockRemoteNewsRepository {
+    fn save_news(&mut self, item: NewsItem) -> Result<()> {
+        if self.failure_mode == MockRemoteFailureMode::Save {
+            return Err(TrendRadarError::Storage {
+                message: "mock remote storage save failed".to_owned(),
+            });
+        }
+
+        let key = (item.source_id, item.title);
+        self.items
+            .entry(key)
+            .and_modify(|rank| *rank = (*rank).min(item.rank))
+            .or_insert(item.rank);
+        Ok(())
+    }
+
+    fn list_news(&self) -> Result<Vec<NewsItem>> {
+        if self.failure_mode == MockRemoteFailureMode::List {
+            return Err(TrendRadarError::Storage {
+                message: "mock remote storage list failed".to_owned(),
+            });
+        }
+
+        let mut items: Vec<NewsItem> = self
+            .items
+            .iter()
+            .map(|((source_id, title), rank)| NewsItem {
+                title: title.clone(),
+                source_id: source_id.clone(),
+                rank: *rank,
+            })
+            .collect();
+        items.sort_by(|left, right| {
+            left.rank
+                .cmp(&right.rank)
+                .then_with(|| left.source_id.cmp(&right.source_id))
+                .then_with(|| left.title.cmp(&right.title))
+        });
+        Ok(items)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{NewsRepository, SqliteNewsRepository};
+    use super::{MockRemoteNewsRepository, NewsRepository, SqliteNewsRepository};
     use std::error::Error;
     use std::fs::read_to_string;
     use trendradar_domain::NewsItem;
@@ -284,5 +380,66 @@ mod tests {
         assert!(items.is_empty());
         assert!(db_path.exists());
         Ok(())
+    }
+
+    #[test]
+    fn mock_remote_repository_preserves_dedup_and_stable_order() -> Result<(), Box<dyn Error>> {
+        let mut repository = MockRemoteNewsRepository::new("trendradar");
+        repository.save_news_batch(&[
+            NewsItem {
+                title: "Rust release".to_owned(),
+                source_id: "weibo".to_owned(),
+                rank: 5,
+            },
+            NewsItem {
+                title: "Rust release".to_owned(),
+                source_id: "weibo".to_owned(),
+                rank: 2,
+            },
+            NewsItem {
+                title: "AI report".to_owned(),
+                source_id: "zhihu".to_owned(),
+                rank: 2,
+            },
+        ])?;
+
+        let stored = repository.list_news()?;
+        assert_eq!(stored.len(), 2);
+        assert_eq!(stored[0].source_id, "weibo");
+        assert_eq!(stored[0].rank, 2);
+        assert_eq!(stored[1].source_id, "zhihu");
+        Ok(())
+    }
+
+    #[test]
+    fn mock_remote_repository_reports_save_failure() {
+        let mut repository = MockRemoteNewsRepository::fail_on_save("trendradar");
+        let error = repository
+            .save_news(NewsItem {
+                title: "broken".to_owned(),
+                source_id: "weibo".to_owned(),
+                rank: 1,
+            })
+            .expect_err("mock remote save should fail");
+
+        assert!(
+            error
+                .to_string()
+                .contains("mock remote storage save failed")
+        );
+    }
+
+    #[test]
+    fn mock_remote_repository_reports_list_failure() {
+        let repository = MockRemoteNewsRepository::fail_on_list("trendradar");
+        let error = repository
+            .list_news()
+            .expect_err("mock remote list should fail");
+
+        assert!(
+            error
+                .to_string()
+                .contains("mock remote storage list failed")
+        );
     }
 }

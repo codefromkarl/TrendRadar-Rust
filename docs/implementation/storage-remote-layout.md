@@ -43,3 +43,9 @@
 1. mock adapter 或内存远程仓储原型
 2. 读取 / 写入错误路径测试
 3. 再评估真实 provider 接入
+
+## 最新进展
+
+- `crates/storage` 已新增 `MockRemoteNewsRepository`
+- 当前 mock 只用于契约演进，不接入 `app` 正式运行路径
+- 已补最小去重 / 稳定排序 / 读写错误路径测试
