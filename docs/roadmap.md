@@ -137,7 +137,8 @@
 
 - **目标**: 统一 Sink trait + 更多渠道（Telegram/Discord/Slack）
 - **架构**: `Notifier` trait 已就位
-- **状态**: ⬜ 待办
+- **当前**: 已补 `notification.sinks` 可扩展配置、`build_notifiers_from_specs()` sink 构建入口、Slack webhook sink，并在 `app` 层保持对旧平铺 webhook 字段的兼容合并
+- **状态**: ✅ 最小版本已完成
 
 ---
 
@@ -163,7 +164,7 @@ v1.2.0 — 通知与调度扩展
 
 v2.0.0 — 生态扩展（Phase 5）
 ├── ✅ P4: 远程对象存储（最小版本）
-├── P5: 可扩展通知 Sink
+├── ✅ P5: 可扩展通知 Sink（最小版本）
 ├── ✅ P1: MCP Server
 ├── ✅ P2: AI 分析（最小版本）
 └── P3: AI 翻译

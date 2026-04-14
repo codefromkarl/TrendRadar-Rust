@@ -11,10 +11,16 @@ use trendradar_ai::{provider_for, render_ai_analysis_markdown};
 use trendradar_analyze::{
     RankedNews, SourceSummary, filter_by_keywords, group_news_by_source, rank_news,
 };
-use trendradar_config::{AppConfig, StorageBackend, load_default_config, validate_config};
+use trendradar_config::{
+    AppConfig, NotificationConfig, NotificationSinkKind as ConfigNotificationSinkKind,
+    StorageBackend, load_default_config, validate_config,
+};
 use trendradar_domain::{NewsItem, RunContext};
 use trendradar_fetch::{
     Fetcher, FixtureHotlistFetcher, FixtureRssFetcher, HttpHotlistFetcher, HttpRssFetcher,
+};
+use trendradar_notification::{
+    NotificationSinkKind, NotificationSinkSpec, build_notifiers_from_specs,
 };
 use trendradar_report::{
     render_news_html, render_news_json, render_news_markdown, render_news_table,
@@ -165,6 +171,65 @@ impl OutputMode {
     }
 }
 
+fn notification_sink_kind(kind: ConfigNotificationSinkKind) -> NotificationSinkKind {
+    match kind {
+        ConfigNotificationSinkKind::Webhook => NotificationSinkKind::Webhook,
+        ConfigNotificationSinkKind::Feishu => NotificationSinkKind::Feishu,
+        ConfigNotificationSinkKind::Dingtalk => NotificationSinkKind::Dingtalk,
+        ConfigNotificationSinkKind::Wecom => NotificationSinkKind::Wecom,
+        ConfigNotificationSinkKind::Slack => NotificationSinkKind::Slack,
+    }
+}
+
+fn push_notification_sink_spec(
+    specs: &mut Vec<NotificationSinkSpec>,
+    kind: NotificationSinkKind,
+    url: &str,
+) {
+    if url.is_empty() {
+        return;
+    }
+
+    if specs
+        .iter()
+        .any(|spec| spec.kind == kind && spec.url == url)
+    {
+        return;
+    }
+
+    specs.push(NotificationSinkSpec {
+        kind,
+        url: url.to_owned(),
+    });
+}
+
+fn notification_sink_specs(config: &NotificationConfig) -> Vec<NotificationSinkSpec> {
+    let mut specs = Vec::new();
+
+    for sink in &config.sinks {
+        push_notification_sink_spec(
+            &mut specs,
+            notification_sink_kind(sink.kind.clone()),
+            &sink.url,
+        );
+    }
+
+    if let Some(url) = config.webhook_url.as_deref() {
+        push_notification_sink_spec(&mut specs, NotificationSinkKind::Webhook, url);
+    }
+    if let Some(url) = config.feishu_webhook_url.as_deref() {
+        push_notification_sink_spec(&mut specs, NotificationSinkKind::Feishu, url);
+    }
+    if let Some(url) = config.dingtalk_webhook_url.as_deref() {
+        push_notification_sink_spec(&mut specs, NotificationSinkKind::Dingtalk, url);
+    }
+    if let Some(url) = config.wecom_webhook_url.as_deref() {
+        push_notification_sink_spec(&mut specs, NotificationSinkKind::Wecom, url);
+    }
+
+    specs
+}
+
 // ---------------------------------------------------------------------------
 // Core pipeline logic (shared by fixture and HTTP paths)
 // ---------------------------------------------------------------------------
@@ -301,13 +366,8 @@ fn run_pipeline_with_fetchers(
 
         // -- Notify --
         if config.notification.enabled {
-            let notifiers = trendradar_notification::build_notifiers(
-                config.notification.enabled,
-                config.notification.webhook_url.as_deref(),
-                config.notification.feishu_webhook_url.as_deref(),
-                config.notification.dingtalk_webhook_url.as_deref(),
-                config.notification.wecom_webhook_url.as_deref(),
-            );
+            let sink_specs = notification_sink_specs(&config.notification);
+            let notifiers = build_notifiers_from_specs(config.notification.enabled, &sink_specs);
             let subject = format!("TrendRadar: {} items collected", stored_items.len());
             let body = json
                 .as_deref()
@@ -655,8 +715,8 @@ pub fn default_db_path(config_path: Option<&Path>) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::{
-        OutputMode, collect_items, read_last_success_at, run_pipeline_with_fetchers,
-        write_cooldown_state,
+        OutputMode, collect_items, notification_sink_specs, read_last_success_at,
+        run_pipeline_with_fetchers, write_cooldown_state,
     };
     use chrono::TimeZone;
     use std::path::PathBuf;
@@ -664,11 +724,12 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
     use trendradar_config::{
-        AiAnalysisConfig, AppConfig, NotificationConfig, ScheduleConfig, StorageBackend,
-        StorageConfig,
+        AiAnalysisConfig, AppConfig, NotificationConfig, NotificationSinkConfig,
+        NotificationSinkKind, ScheduleConfig, StorageBackend, StorageConfig,
     };
     use trendradar_domain::NewsItem;
     use trendradar_fetch::{FetchError, Fetcher};
+    use trendradar_notification::NotificationSinkKind as NotifierSinkKind;
 
     struct ProbeFetcher {
         source_id: String,
@@ -724,6 +785,76 @@ mod tests {
             keywords: Vec::new(),
             notification: NotificationConfig::default(),
         }
+    }
+
+    #[test]
+    fn notification_sink_specs_merge_extensible_and_legacy_channels() {
+        let mut notification = NotificationConfig {
+            enabled: true,
+            ..NotificationConfig::default()
+        };
+        notification.sinks = vec![
+            NotificationSinkConfig {
+                kind: NotificationSinkKind::Slack,
+                url: "https://hooks.slack.com/services/one".to_owned(),
+            },
+            NotificationSinkConfig {
+                kind: NotificationSinkKind::Webhook,
+                url: "https://hooks.example.com/webhook".to_owned(),
+            },
+        ];
+        notification.webhook_url = Some("https://hooks.example.com/webhook".to_owned());
+        notification.wecom_webhook_url =
+            Some("https://qyapi.weixin.qq.com/cgi-bin/webhook/send".to_owned());
+
+        let specs = notification_sink_specs(&notification);
+
+        assert_eq!(specs.len(), 3);
+        assert_eq!(specs[0].kind, NotifierSinkKind::Slack);
+        assert_eq!(specs[1].kind, NotifierSinkKind::Webhook);
+        assert_eq!(specs[2].kind, NotifierSinkKind::Wecom);
+    }
+
+    #[test]
+    fn pipeline_uses_extensible_slack_sink_for_notifications() -> anyhow::Result<()> {
+        let mut server = mockito::Server::new();
+        let mock = server
+            .mock("POST", "/slack")
+            .match_header("content-type", "application/json")
+            .with_status(200)
+            .create();
+
+        let fetchers: Vec<Box<dyn Fetcher>> = vec![Box::new(ProbeFetcher {
+            source_id: "weibo".to_owned(),
+            active: Arc::new(AtomicUsize::new(0)),
+            max_active: Arc::new(AtomicUsize::new(0)),
+            sleep_for: Duration::from_millis(5),
+        })];
+
+        let mut config = test_config();
+        config.schedule.push = true;
+        config.notification = NotificationConfig {
+            enabled: true,
+            sinks: vec![NotificationSinkConfig {
+                kind: NotificationSinkKind::Slack,
+                url: format!("{}/slack", server.url()),
+            }],
+            ..NotificationConfig::default()
+        };
+
+        let result = run_pipeline_with_fetchers(
+            &config,
+            chrono::Utc::now(),
+            &fetchers,
+            None,
+            true,
+            true,
+            OutputMode::Json,
+        )?;
+
+        assert!(result.report_json.is_some());
+        mock.assert();
+        Ok(())
     }
 
     #[test]

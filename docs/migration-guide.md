@@ -41,6 +41,7 @@
 | `http_timeout_secs` | `u64` | `30` | HTTP 请求超时秒数 |
 | `keywords` | `string[]` | `[]` | 关键词过滤列表（空=不过滤） |
 | `notification.enabled` | `bool` | `false` | 是否启用通知 |
+| `notification.sinks` | `NotificationSinkConfig[]` | `[]` | 可扩展通知 sink 列表 |
 | `notification.webhook_url` | `string?` | `null` | Webhook URL |
 | `notification.feishu_webhook_url` | `string?` | `null` | 飞书机器人 Webhook URL |
 | `notification.dingtalk_webhook_url` | `string?` | `null` | 钉钉机器人 Webhook URL |
@@ -78,6 +79,12 @@
   "http_timeout_secs": 15,
   "notification": {
     "enabled": true,
+    "sinks": [
+      {
+        "kind": "slack",
+        "url": "https://hooks.slack.com/services/T000/B000/XXX"
+      }
+    ],
     "webhook_url": "https://hooks.example.com/trendradar",
     "feishu_webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/xxx",
     "dingtalk_webhook_url": "https://oapi.dingtalk.com/robot/send?access_token=xxx",
@@ -88,6 +95,12 @@
   ]
 }
 ```
+
+说明：
+
+- 推荐新配置优先使用 `notification.sinks`
+- 旧平铺字段当前仍兼容，可与 `sinks` 并存
+- 如果同类型同 URL 同时出现在 `sinks` 和旧字段中，Rust 侧会去重，避免重复发送
 
 ## CLI 参数对照
 

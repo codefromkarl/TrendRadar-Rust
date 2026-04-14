@@ -30,6 +30,43 @@ pub trait Notifier {
     fn send(&self, subject: &str, body: &str) -> Result<()>;
 }
 
+/// 通知 sink 类型。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotificationSinkKind {
+    /// 通用 webhook。
+    Webhook,
+    /// 飞书 webhook。
+    Feishu,
+    /// 钉钉 webhook。
+    Dingtalk,
+    /// 企业微信 webhook。
+    Wecom,
+    /// Slack webhook。
+    Slack,
+}
+
+impl fmt::Display for NotificationSinkKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            Self::Webhook => "webhook",
+            Self::Feishu => "feishu",
+            Self::Dingtalk => "dingtalk",
+            Self::Wecom => "wecom",
+            Self::Slack => "slack",
+        };
+        formatter.write_str(name)
+    }
+}
+
+/// 单个通知 sink 规格。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NotificationSinkSpec {
+    /// sink 类型。
+    pub kind: NotificationSinkKind,
+    /// sink URL。
+    pub url: String,
+}
+
 /// 控制台通知器（用于调试）。
 ///
 /// 将消息输出到 stdout。
@@ -113,6 +150,23 @@ impl WeComNotifier {
     }
 }
 
+/// Slack 通知器。
+pub struct SlackNotifier {
+    url: String,
+    client: reqwest::blocking::Client,
+}
+
+impl SlackNotifier {
+    /// 创建 Slack 通知器。
+    #[must_use]
+    pub fn new(url: impl Into<String>) -> Self {
+        Self {
+            url: url.into(),
+            client: reqwest::blocking::Client::new(),
+        }
+    }
+}
+
 impl Notifier for WebhookNotifier {
     fn send(&self, subject: &str, body: &str) -> Result<()> {
         let payload = serde_json::json!({
@@ -160,6 +214,16 @@ impl Notifier for WeComNotifier {
         });
 
         post_json(&self.client, &self.url, payload, "wecom")
+    }
+}
+
+impl Notifier for SlackNotifier {
+    fn send(&self, subject: &str, body: &str) -> Result<()> {
+        let payload = serde_json::json!({
+            "text": format!("{subject}\n{body}")
+        });
+
+        post_json(&self.client, &self.url, payload, "slack")
     }
 }
 
@@ -237,37 +301,82 @@ pub fn build_notifiers(
     dingtalk_webhook_url: Option<&str>,
     wecom_webhook_url: Option<&str>,
 ) -> Vec<Box<dyn Notifier>> {
+    let mut specs = Vec::new();
+
+    if let Some(url) = webhook_url {
+        if !url.is_empty() {
+            specs.push(NotificationSinkSpec {
+                kind: NotificationSinkKind::Webhook,
+                url: url.to_owned(),
+            });
+        }
+    }
+
+    if let Some(url) = feishu_webhook_url {
+        if !url.is_empty() {
+            specs.push(NotificationSinkSpec {
+                kind: NotificationSinkKind::Feishu,
+                url: url.to_owned(),
+            });
+        }
+    }
+
+    if let Some(url) = dingtalk_webhook_url {
+        if !url.is_empty() {
+            specs.push(NotificationSinkSpec {
+                kind: NotificationSinkKind::Dingtalk,
+                url: url.to_owned(),
+            });
+        }
+    }
+
+    if let Some(url) = wecom_webhook_url {
+        if !url.is_empty() {
+            specs.push(NotificationSinkSpec {
+                kind: NotificationSinkKind::Wecom,
+                url: url.to_owned(),
+            });
+        }
+    }
+
+    build_notifiers_from_specs(enabled, &specs)
+}
+
+/// 按 sink 列表构建通知器。
+pub fn build_notifiers_from_specs(
+    enabled: bool,
+    specs: &[NotificationSinkSpec],
+) -> Vec<Box<dyn Notifier>> {
     let mut notifiers: Vec<Box<dyn Notifier>> = Vec::new();
 
     if !enabled {
         return notifiers;
     }
 
-    if let Some(url) = webhook_url {
-        if !url.is_empty() {
-            notifiers.push(Box::new(WebhookNotifier::new(url)));
+    for spec in specs {
+        if spec.url.is_empty() {
+            continue;
+        }
+
+        match spec.kind {
+            NotificationSinkKind::Webhook => {
+                notifiers.push(Box::new(WebhookNotifier::new(&spec.url)));
+            }
+            NotificationSinkKind::Feishu => {
+                notifiers.push(Box::new(FeishuNotifier::new(&spec.url)));
+            }
+            NotificationSinkKind::Dingtalk => {
+                notifiers.push(Box::new(DingTalkNotifier::new(&spec.url)));
+            }
+            NotificationSinkKind::Wecom => {
+                notifiers.push(Box::new(WeComNotifier::new(&spec.url)));
+            }
+            NotificationSinkKind::Slack => {
+                notifiers.push(Box::new(SlackNotifier::new(&spec.url)));
+            }
         }
     }
 
-    if let Some(url) = feishu_webhook_url {
-        if !url.is_empty() {
-            notifiers.push(Box::new(FeishuNotifier::new(url)));
-        }
-    }
-
-    if let Some(url) = dingtalk_webhook_url {
-        if !url.is_empty() {
-            notifiers.push(Box::new(DingTalkNotifier::new(url)));
-        }
-    }
-
-    if let Some(url) = wecom_webhook_url {
-        if !url.is_empty() {
-            notifiers.push(Box::new(WeComNotifier::new(url)));
-        }
-    }
-
-    // 如果没有配置任何外部通知器，默认添加 console
     if notifiers.is_empty() {
         notifiers.push(Box::new(ConsoleNotifier));
     }
@@ -279,8 +388,9 @@ pub fn build_notifiers(
 #[allow(clippy::expect_used)]
 mod tests {
     use super::{
-        ConsoleNotifier, DingTalkNotifier, FeishuNotifier, Notifier, WeComNotifier,
-        WebhookNotifier, build_notifiers,
+        ConsoleNotifier, DingTalkNotifier, FeishuNotifier, NotificationSinkKind,
+        NotificationSinkSpec, Notifier, SlackNotifier, WeComNotifier, WebhookNotifier,
+        build_notifiers, build_notifiers_from_specs,
     };
     use std::error::Error;
 
@@ -362,6 +472,23 @@ mod tests {
     }
 
     #[test]
+    fn build_notifiers_from_specs_supports_slack_and_webhook() {
+        let specs = vec![
+            NotificationSinkSpec {
+                kind: NotificationSinkKind::Webhook,
+                url: "http://example.com/webhook".to_owned(),
+            },
+            NotificationSinkSpec {
+                kind: NotificationSinkKind::Slack,
+                url: "http://example.com/slack".to_owned(),
+            },
+        ];
+        let notifiers = build_notifiers_from_specs(true, &specs);
+
+        assert_eq!(notifiers.len(), 2);
+    }
+
+    #[test]
     fn feishu_notifier_sends_expected_payload() -> Result<(), Box<dyn Error>> {
         let mut server = mockito::Server::new();
         let payload = serde_json::json!({
@@ -418,6 +545,26 @@ mod tests {
             .create();
 
         let notifier = WeComNotifier::new(format!("{}/wecom", server.url()));
+        notifier.send("Test", "Hello")?;
+
+        mock.assert();
+        Ok(())
+    }
+
+    #[test]
+    fn slack_notifier_sends_expected_payload() -> Result<(), Box<dyn Error>> {
+        let mut server = mockito::Server::new();
+        let payload = serde_json::json!({
+            "text": "Test\nHello"
+        });
+        let mock = server
+            .mock("POST", "/slack")
+            .match_header("content-type", "application/json")
+            .match_body(payload.to_string().into_bytes())
+            .with_status(200)
+            .create();
+
+        let notifier = SlackNotifier::new(format!("{}/slack", server.url()));
         notifier.send("Test", "Hello")?;
 
         mock.assert();

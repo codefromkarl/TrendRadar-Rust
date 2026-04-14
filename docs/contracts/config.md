@@ -102,11 +102,15 @@ RSS 订阅列表：
 通知配置：
 
 - `notification.enabled: bool`
+- `notification.sinks: NotificationSinkConfig[]`
+- `notification.sinks[].kind: "webhook" | "feishu" | "dingtalk" | "wecom" | "slack"`
+- `notification.sinks[].url: String`
 - `notification.webhook_url: Option<String>`
 - `notification.feishu_webhook_url: Option<String>`
 - `notification.dingtalk_webhook_url: Option<String>`
 - `notification.wecom_webhook_url: Option<String>`
 - 所有通知渠道字段缺失时默认回落为 `None`
+- `notification.sinks` 与旧平铺字段可同时存在，`app` 层会合并它们并避免同类型同 URL 重复发送
 
 ## 错误契约
 

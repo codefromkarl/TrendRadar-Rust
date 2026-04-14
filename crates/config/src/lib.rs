@@ -225,6 +225,9 @@ pub struct NotificationConfig {
     /// 是否启用通知。
     #[serde(default)]
     pub enabled: bool,
+    /// 可扩展 sink 列表。
+    #[serde(default)]
+    pub sinks: Vec<NotificationSinkConfig>,
     /// Webhook URL。
     #[serde(default)]
     pub webhook_url: Option<String>,
@@ -237,6 +240,31 @@ pub struct NotificationConfig {
     /// 企业微信 Webhook URL。
     #[serde(default)]
     pub wecom_webhook_url: Option<String>,
+}
+
+/// 通知 sink 类型。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NotificationSinkKind {
+    /// 通用 webhook。
+    Webhook,
+    /// 飞书 webhook。
+    Feishu,
+    /// 钉钉 webhook。
+    Dingtalk,
+    /// 企业微信 webhook。
+    Wecom,
+    /// Slack webhook。
+    Slack,
+}
+
+/// 单个通知 sink 配置。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NotificationSinkConfig {
+    /// sink 类型。
+    pub kind: NotificationSinkKind,
+    /// webhook URL。
+    pub url: String,
 }
 
 impl Default for AppConfig {
@@ -327,8 +355,9 @@ pub fn load_config_from_file(path: &Path) -> Result<AppConfig> {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::{
-        AiAnalysisConfig, AppConfig, NotificationConfig, RemoteStorageConfig, ScheduleConfig,
-        ScheduleWindowConfig, StorageBackend, StorageConfig, load_config_from_json_str,
+        AiAnalysisConfig, AppConfig, NotificationConfig, NotificationSinkKind, RemoteStorageConfig,
+        ScheduleConfig, ScheduleWindowConfig, StorageBackend, StorageConfig,
+        load_config_from_json_str,
     };
     use std::error::Error;
     use std::fs::read_to_string;
@@ -565,6 +594,41 @@ mod tests {
         assert_eq!(
             config.notification.wecom_webhook_url.as_deref(),
             Some("https://qyapi.weixin.qq.com/cgi-bin/webhook/send")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn notification_sinks_load_from_json() -> Result<(), Box<dyn Error>> {
+        let input = r#"{
+            "timezone":"Asia/Shanghai",
+            "notification":{
+                "enabled":true,
+                "sinks":[
+                    {"kind":"webhook","url":"https://hooks.example.com/webhook"},
+                    {"kind":"slack","url":"https://hooks.slack.com/services/test"}
+                ]
+            }
+        }"#;
+        let config = load_config_from_json_str(input)?;
+
+        assert!(config.notification.enabled);
+        assert_eq!(config.notification.sinks.len(), 2);
+        assert_eq!(
+            config.notification.sinks[0].kind,
+            NotificationSinkKind::Webhook
+        );
+        assert_eq!(
+            config.notification.sinks[0].url,
+            "https://hooks.example.com/webhook"
+        );
+        assert_eq!(
+            config.notification.sinks[1].kind,
+            NotificationSinkKind::Slack
+        );
+        assert_eq!(
+            config.notification.sinks[1].url,
+            "https://hooks.slack.com/services/test"
         );
         Ok(())
     }
