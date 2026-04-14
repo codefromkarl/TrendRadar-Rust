@@ -8,6 +8,20 @@ use std::thread;
 use std::time::Duration;
 use trendradar_app::{OutputMode, run_config_pipeline, run_config_pipeline_with_output};
 use trendradar_config::load_config_from_json_str;
+use trendradar_domain::NewsItem;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StablePipelineSnapshot {
+    collected_items: Vec<NewsItem>,
+    filtered_items: Vec<NewsItem>,
+    ranked_items: Vec<trendradar_analyze::RankedNews>,
+    source_summaries: Vec<trendradar_analyze::SourceSummary>,
+    stored_items: Vec<NewsItem>,
+    report_json: Option<String>,
+    report_html: Option<String>,
+    report_table: Option<String>,
+    report_markdown: Option<String>,
+}
 
 #[derive(Clone)]
 struct ResponseSpec {
@@ -22,6 +36,20 @@ fn reason_phrase(status: u16) -> &'static str {
         200 => "OK",
         500 => "Internal Server Error",
         _ => "Unknown",
+    }
+}
+
+fn snapshot_pipeline_result(result: trendradar_app::PipelineResult) -> StablePipelineSnapshot {
+    StablePipelineSnapshot {
+        collected_items: result.collected_items,
+        filtered_items: result.filtered_items,
+        ranked_items: result.ranked_items,
+        source_summaries: result.source_summaries,
+        stored_items: result.stored_items,
+        report_json: result.report_json,
+        report_html: result.report_html,
+        report_table: result.report_table,
+        report_markdown: result.report_markdown,
     }
 }
 
@@ -339,5 +367,134 @@ fn config_pipeline_keeps_all_report_formats_stable_under_complex_concurrent_http
     assert_titles_in_order(report_html, &expected_titles)?;
     assert_titles_in_order(report_table, &expected_titles)?;
     assert_titles_in_order(report_markdown, &expected_titles)?;
+    Ok(())
+}
+
+#[test]
+fn config_pipeline_keeps_complex_concurrent_outputs_identical_across_repeated_runs() -> Result<()> {
+    const RUNS: usize = 5;
+
+    let mut routes = HashMap::new();
+    routes.insert(
+        "/rss-slow-a",
+        ResponseSpec {
+            status: 200,
+            content_type: "application/xml",
+            body: r#"<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Slow Feed A</title>
+    <item><title>Charlie RSS stable</title></item>
+  </channel>
+</rss>"#,
+            delay: Duration::from_millis(180),
+        },
+    );
+    routes.insert(
+        "/rss-slow-b",
+        ResponseSpec {
+            status: 200,
+            content_type: "application/xml",
+            body: r#"<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Slow Feed B</title>
+    <item><title>Delta RSS stable</title></item>
+  </channel>
+</rss>"#,
+            delay: Duration::from_millis(120),
+        },
+    );
+    routes.insert(
+        "/baidu-fast",
+        ResponseSpec {
+            status: 200,
+            content_type: "application/json",
+            body: r#"<!doctype html><!--s-data:{"data":{"cards":[{"content":[{"word":"Alpha Baidu stable","rawUrl":"https://example.com/baidu"}]}]}}-->"#,
+            delay: Duration::from_millis(15),
+        },
+    );
+    routes.insert(
+        "/cls-mid",
+        ResponseSpec {
+            status: 200,
+            content_type: "application/json",
+            body: r#"{
+                "data": [
+                    {
+                        "id": 1001,
+                        "title": "Bravo Cls stable",
+                        "brief": "summary",
+                        "shareurl": "https://www.cls.cn/detail/1001",
+                        "ctime": 1710000000,
+                        "is_ad": 0
+                    }
+                ]
+            }"#,
+            delay: Duration::from_millis(60),
+        },
+    );
+    routes.insert(
+        "/broken-1",
+        ResponseSpec {
+            status: 500,
+            content_type: "application/json",
+            body: r#"{"error":"boom"}"#,
+            delay: Duration::from_millis(10),
+        },
+    );
+    routes.insert(
+        "/broken-2",
+        ResponseSpec {
+            status: 500,
+            content_type: "application/json",
+            body: r#"{"error":"boom"}"#,
+            delay: Duration::from_millis(35),
+        },
+    );
+
+    let (base_url, handle) = start_test_server(routes, RUNS * 6)?;
+    let config_json = format!(
+        r#"{{
+            "timezone":"Asia/Shanghai",
+            "rss_feeds":[
+                {{"source_id":"rss-charlie","url":"{base}/rss-slow-a"}},
+                {{"source_id":"rss-delta","url":"{base}/rss-slow-b"}}
+            ],
+            "hotlist_apis":[
+                {{"platform_id":"baidu","url":"{base}/baidu-fast","source_type":"baidu"}},
+                {{"platform_id":"cls","url":"{base}/cls-mid","source_type":"cls"}},
+                {{"platform_id":"broken-1","url":"{base}/broken-1","source_type":"generic"}},
+                {{"platform_id":"broken-2","url":"{base}/broken-2","source_type":"generic"}}
+            ]
+        }}"#,
+        base = base_url
+    );
+    let config = load_config_from_json_str(&config_json)?;
+
+    let started_at = chrono::Utc
+        .with_ymd_and_hms(2026, 4, 13, 18, 30, 0)
+        .single()
+        .ok_or_else(|| anyhow::anyhow!("invalid fixed timestamp"))?;
+
+    let mut baseline: Option<StablePipelineSnapshot> = None;
+    for run in 0..RUNS {
+        let result = run_config_pipeline_with_output(&config, started_at, None, OutputMode::All)?;
+        let snapshot = snapshot_pipeline_result(result);
+
+        if let Some(expected) = &baseline {
+            assert_eq!(
+                &snapshot, expected,
+                "run {run} should keep complex concurrent outputs identical to the first run"
+            );
+        } else {
+            baseline = Some(snapshot);
+        }
+    }
+
+    handle
+        .join()
+        .map_err(|_| anyhow::anyhow!("test server panicked"))??;
+
     Ok(())
 }

@@ -87,14 +87,14 @@
 
 - **目标**: 对比 Python 版本，量化 Rust 性能优势
 - **依赖**: `criterion` crate
-- **当前**: 已有 `cargo bench --package trendradar-app --bench pipeline_bench` 入口、README 基线表、`docs/benchmark-baseline.md`，并新增 `docs/benchmark-python-baseline.md` 固定 Python 对比模板；真实 Python 测量值与展示收口仍待补
-- **状态**: ⬜ 待办
+- **当前**: 已有 `cargo bench --package trendradar-app --bench pipeline_bench` 入口、README 基线表、`docs/benchmark-baseline.md`，并新增 `scripts/benchmark_python_baseline.py`；`fixture_pipeline_minimal` 已补同机真实 Rust/Python 主对比值，详见 `docs/benchmark-python-baseline.md`
+- **状态**: ✅ 已完成
 
 #### O5: 集成测试覆盖增强
 
 - **目标**: 更多边界场景（大数据量、并发、网络异常恢复）
-- **当前**: 已补 HTTP mixed success/failure、并发多失败源 retained results、大输入稳定性、慢源/多失败源恢复，以及系统层复杂并发慢源/多失败源下的多格式输出稳定性；仍可继续扩更高复杂度组合
-- **状态**: ⬜ 待办
+- **当前**: 已补 HTTP mixed success/failure、并发多失败源 retained results、大输入稳定性、慢源/多失败源恢复，以及新增“复杂并发慢源/失败源组合下连续多轮输出完全一致”的根级系统测试；按当前收口口径，O5 不再继续横向扩测试组合
+- **状态**: ✅ 已完成
 
 #### O6: 贡献者文档
 

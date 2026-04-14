@@ -14,8 +14,9 @@
 ## 当前状态
 
 - Rust 侧已有可复用 benchmark 入口与基线结果，详见 [benchmark-baseline.md](./benchmark-baseline.md)
-- Python 侧当前尚未在本仓库内固化统一测量脚本
-- 因此本文件目前提供的是“对比基线模板”，不是“已完成的对比结论”
+- Python 侧已在本仓库内固化测量脚本：`scripts/benchmark_python_baseline.py`
+- `fixture_pipeline_minimal` 已补一条同机真实对比值
+- 其余阶段拆分 benchmark 仍保持 `pending`
 
 ## 对比边界
 
@@ -64,11 +65,11 @@ Python 对比时，必须保证语义等价，而不是只看“差不多”：
 cargo bench --package trendradar-app --bench pipeline_bench
 ```
 
-当前可直接引用的 Rust 锚点：
+本次与 Python 对齐时，实际使用的同环境 Rust 主对比值如下（2026-04-14 本机重跑）：
 
 | Benchmark | Rust 当前锚点 |
 | --- | --- |
-| `pipeline_total/fixture_pipeline_minimal` | `147.17 µs ~ 166.30 µs` |
+| `pipeline_total/fixture_pipeline_minimal` | `162.33 µs ~ 165.75 µs` |
 | `pipeline_stage/fetch_fixture_sources` | `9.0537 µs ~ 9.4556 µs` |
 | `pipeline_stage/analyze_filter_rank_group` | `1.1192 µs ~ 1.1954 µs` |
 | `pipeline_stage/storage_in_memory_roundtrip` | `75.258 µs ~ 84.820 µs` |
@@ -76,49 +77,73 @@ cargo bench --package trendradar-app --bench pipeline_bench
 
 ### Python 侧
 
-Python 侧当前没有仓库内统一脚本，因此建议先固定“测量原则”，再填实际数值：
+Python 真实入口已经固定为：
+
+- 代码入口：`/home/yuanzhi/Develop/ai-research/TrendRadar/trendradar/__main__.py`
+- CLI 入口：`python -m trendradar`
+
+但 Python CLI 当前没有暴露可配置的热榜 API 基址，因此本仓库内新增了一个 benchmark bridge：
+
+- 脚本：`scripts/benchmark_python_baseline.py`
+- 实际测量调用：`trendradar.__main__.NewsAnalyzer.run()`
+- 额外注入：本地 fixture HTTP server + `DataFetcher.DEFAULT_API_URL` monkeypatch
+
+这样做的目的，是在**不修改旁边 Python 仓库代码**的前提下，仍然复用其真实主流程对象，并保持“无 HTTP 噪声、只对齐 fixture 语义”的约束。
+
+Python 侧当前主对比命令：
+
+```bash
+/home/yuanzhi/Develop/ai-research/TrendRadar/.venv/bin/python \
+  scripts/benchmark_python_baseline.py --warmups 5 --runs 10
+```
+
+脚本会把最近一次结果写到：
+
+```bash
+target/python-benchmark-baseline/fixture_pipeline_minimal.json
+```
+
+当前测量仍遵循这些原则：
 
 - 优先测端到端 fixture pipeline，而不是 HTTP 路径
 - 使用独立的 benchmark 配置，避免把生产配置噪声带进基线
 - 至少记录 warm-up 后的稳定区间，不只记单次结果
 - 建议使用同一台机器、同一时间段完成 Rust / Python 两组测量
 
-如果沿用原 Python 主程序入口，可以采用类似下面的测量方式：
+## 本次环境记录
 
-```bash
-python main.py --config benchmark-config.yaml
-```
-
-上面只是入口示意，不代表当前仓库已经内置该脚本或配置文件。真正落值前，需要先把 Python 侧实际测量入口记录到表格中。
-
-## 环境记录模板
-
-每次记录 Python 对比值时，至少补下面这些字段：
+本次 `fixture_pipeline_minimal` 实测环境如下：
 
 | 字段 | 值 |
 | --- | --- |
-| 日期 | `待填写` |
-| 机器 | `待填写` |
-| CPU | `待填写` |
-| OS | `待填写` |
-| Rust 版本 | `待填写` |
-| Python 版本 | `待填写` |
-| 测量工具 | `待填写` |
-| 备注 | `待填写` |
+| 日期 | `2026-04-14 10:35:23 +08:00` |
+| 机器 | `yuanzhi-Legion-Y7000P-IRX9` |
+| CPU | `Intel(R) Core(TM) i7-14700HX` |
+| OS | `Linux-6.14.0-37-generic-x86_64-with-glibc2.39` |
+| Rust 版本 | `rustc 1.94.1 (2026-03-25)` |
+| Python 版本 | `3.13.9` |
+| 测量工具 | `Criterion + time.perf_counter_ns` |
+| 备注 | `Python 固定 CLI 入口为 python -m trendradar；实际 benchmark 通过 bridge 复用 NewsAnalyzer.run，并把热榜/RSS 重定向到本地 fixture HTTP server` |
 
 没有环境记录的对比值，不应写入 README 主表。
 
-## 对比结果模板
+## 对比结果
 
-建议把 Rust 锚点与 Python 对比值并列表达，但保持“已测 / 未测”状态清晰可见。
+当前主对比结果如下：
 
 | Profile | Rust 锚点 | Python 基线 | 状态 | 备注 |
 | --- | --- | --- | --- | --- |
-| `fixture_pipeline_minimal` | `147.17 µs ~ 166.30 µs` | `待测` | `pending` | E6 主对比入口 |
+| `fixture_pipeline_minimal` | `162.33 µs ~ 165.75 µs` | `73.95 ms ~ 89.90 ms` | `done` | E6 主对比入口；Python 中位 `81.22 ms`，Rust 中位 `163.96 µs` |
 | `fetch_fixture_sources` | `9.0537 µs ~ 9.4556 µs` | `待测` | `pending` | 仅在 Python 有可对齐拆分入口时填写 |
 | `analyze_filter_rank_group` | `1.1192 µs ~ 1.1954 µs` | `待测` | `pending` | 同上 |
 | `storage_in_memory_roundtrip` | `75.258 µs ~ 84.820 µs` | `待测` | `pending` | 仅在存储语义完全一致时填写 |
 | `report_render_all_formats` | `30.268 µs ~ 31.643 µs` | `待测` | `pending` | 需要输出集合完全一致 |
+
+### 粗略结论
+
+- 仅就本次同机 `fixture_pipeline_minimal` 主对比看，**Rust 明显快于 Python**
+- 以中位数粗略估算：`81.22 ms / 163.96 µs ≈ 495x`
+- 这个倍数是基于当前本机、当前 bridge 测量方式的**推算值**，不应外推为所有输入、所有环境、所有配置下的固定结论
 
 ## 何时可以把 E6 视为完成
 
@@ -133,7 +158,7 @@ python main.py --config benchmark-config.yaml
 
 如果继续推进 E6，建议按下面顺序执行：
 
-1. 先在本文件填写 Python 实际测量入口
-2. 只落 `fixture_pipeline_minimal` 一条主对比值
-3. 再决定是否补阶段拆分对比
-4. 最后把可公开展示的对比摘要同步到 README 和路线图
+1. 保持 `fixture_pipeline_minimal` 作为主对比入口，不轻易扩散范围
+2. 视需要决定是否补 `fetch / analyze / storage / report` 阶段拆分对比
+3. 如果要把 Python 对比值抬到 README 主表，先确认展示口径只引用本文件
+4. 若后续 Python 仓库自身暴露了可配置 hotlist API 入口，可再把 bridge 简化为更贴近纯 CLI 的测量方式
