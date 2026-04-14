@@ -87,7 +87,7 @@
 
 - **目标**: 对比 Python 版本，量化 Rust 性能优势
 - **依赖**: `criterion` crate
-- **当前**: 已有 `cargo bench --package trendradar-app --bench pipeline_bench` 入口、README 基线表和 `docs/benchmark-baseline.md`；待补 Python 对比与展示收口
+- **当前**: 已有 `cargo bench --package trendradar-app --bench pipeline_bench` 入口、README 基线表、`docs/benchmark-baseline.md`，并新增 `docs/benchmark-python-baseline.md` 固定 Python 对比模板；真实 Python 测量值与展示收口仍待补
 - **状态**: ⬜ 待办
 
 #### O5: 集成测试覆盖增强

@@ -6,6 +6,8 @@
 
 当前基线只覆盖 Rust 内部测量结果，不直接声称已经完成与 Python 版本的严格对比。
 
+如需查看 Rust / Python 对比的记录模板与对齐要求，见 [benchmark-python-baseline.md](./benchmark-python-baseline.md)。
+
 ## Benchmark 入口
 
 当前统一入口：
@@ -61,9 +63,6 @@ cargo bench --package trendradar-app --bench pipeline_bench
 
 ## E6-2 后续建议
 
-如果要继续推进 E6，建议下一步补下面这些内容：
+Python 对比基线的模板、对齐规则和落表方式，已经单独整理到 [benchmark-python-baseline.md](./benchmark-python-baseline.md)。
 
-1. 明确 Python 对比基线的测量入口
-2. 固定和 Rust 相同的 fixture 输入
-3. 把“当前主基线”与“Python 对比值”拆成两张表，避免混淆
-4. 明确哪些 benchmark 长期保留，哪些只是阶段性记录
+后续如果继续推进 E6，建议直接在那份文档中补真实测量入口和结果，而不是继续把对比说明堆到本页。

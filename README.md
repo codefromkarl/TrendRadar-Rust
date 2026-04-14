@@ -176,7 +176,7 @@ cargo bench --package trendradar-app --bench pipeline_bench
 | `pipeline_stage/storage_in_memory_roundtrip` | `75.258 µs ~ 84.820 µs` |
 | `pipeline_stage/report_render_all_formats` | `30.268 µs ~ 31.643 µs` |
 
-这些结果目前用于 Rust 内部基线对照。Python 对比值和更完整的对外展示仍留待后续补充。
+这些结果目前用于 Rust 内部基线对照。Python 对比基线的对齐规则、结果模板和后续填写入口，见 [docs/benchmark-python-baseline.md](./docs/benchmark-python-baseline.md)。
 
 ## CLI 退出码
 
@@ -214,11 +214,11 @@ cargo bench --package trendradar-app --bench pipeline_bench
 
 - [架构说明](./docs/architecture.md)
 - [性能基线](./docs/benchmark-baseline.md)
+- [Python 对比基线](./docs/benchmark-python-baseline.md)
 - [环境准备](./docs/environment-setup.md)
 - [迁移策略](./docs/migration-strategy.md)
 - [实施计划](./docs/implementation-plan.md)
 - [后续拓展执行文档](./docs/extension-execution-plan.md)
-- [性能基线](./docs/benchmark-baseline.md)
 - [并行迁移总方案](./docs/parallel-migration-plan.md)
 - [契约文档目录](./docs/contracts/README.md)
 - [实施文档目录](./docs/implementation/README.md)

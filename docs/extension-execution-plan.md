@@ -75,7 +75,7 @@
 - 当前实现：
 - benchmark 入口：`cargo bench --package trendradar-app --bench pipeline_bench`
 - 基线覆盖：fixture pipeline total、fetch/analyze/storage/report 四个阶段
-- 当前备注：本轮先建立 Rust 内部基线；Python 对比值留待后续单独补充
+- 当前备注：本轮先建立 Rust 内部基线；Python 对比模板已单独整理到 `docs/benchmark-python-baseline.md`，真实对比值留待后续补充
 - 首次基线记录：
 - `pipeline_total/fixture_pipeline_minimal`: `194.20 µs ~ 207.51 µs`
 - `pipeline_stage/fetch_fixture_sources`: `9.0537 µs ~ 9.4556 µs`
