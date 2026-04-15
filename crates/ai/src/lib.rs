@@ -208,9 +208,8 @@ mod tests {
 
     #[test]
     fn unsupported_provider_returns_error() {
-        let error = match provider_for("openai", 3, None) {
-            Ok(_) => panic!("provider should fail"),
-            Err(error) => error,
+        let Err(error) = provider_for("openai", 3, None) else {
+            unreachable!("provider should fail");
         };
         assert!(error.to_string().contains("unsupported ai provider"));
     }

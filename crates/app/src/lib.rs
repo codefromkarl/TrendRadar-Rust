@@ -1082,7 +1082,7 @@ mod tests {
         let mut config = test_config();
         config.storage.backend = StorageBackend::S3;
 
-        let error = run_pipeline_with_fetchers(
+        let Err(error) = run_pipeline_with_fetchers(
             &config,
             chrono::Utc::now(),
             &fetchers,
@@ -1090,8 +1090,9 @@ mod tests {
             true,
             true,
             OutputMode::All,
-        )
-        .expect_err("remote storage should be rejected until implemented");
+        ) else {
+            unreachable!("remote storage should be rejected until implemented");
+        };
 
         assert!(
             error

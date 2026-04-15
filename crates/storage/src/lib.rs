@@ -652,13 +652,13 @@ mod tests {
     #[test]
     fn mock_remote_repository_reports_save_failure() {
         let mut repository = MockRemoteNewsRepository::fail_on_save("trendradar");
-        let error = repository
-            .save_news(NewsItem {
-                title: "broken".to_owned(),
-                source_id: "weibo".to_owned(),
-                rank: 1,
-            })
-            .expect_err("mock remote save should fail");
+        let Err(error) = repository.save_news(NewsItem {
+            title: "broken".to_owned(),
+            source_id: "weibo".to_owned(),
+            rank: 1,
+        }) else {
+            unreachable!("mock remote save should fail");
+        };
 
         assert!(
             error
@@ -670,9 +670,9 @@ mod tests {
     #[test]
     fn mock_remote_repository_reports_list_failure() {
         let repository = MockRemoteNewsRepository::fail_on_list("trendradar");
-        let error = repository
-            .list_news()
-            .expect_err("mock remote list should fail");
+        let Err(error) = repository.list_news() else {
+            unreachable!("mock remote list should fail");
+        };
 
         assert!(
             error

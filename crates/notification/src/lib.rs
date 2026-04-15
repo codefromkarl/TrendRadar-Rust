@@ -303,40 +303,40 @@ pub fn build_notifiers(
 ) -> Vec<Box<dyn Notifier>> {
     let mut specs = Vec::new();
 
-    if let Some(url) = webhook_url {
-        if !url.is_empty() {
-            specs.push(NotificationSinkSpec {
-                kind: NotificationSinkKind::Webhook,
-                url: url.to_owned(),
-            });
-        }
+    if let Some(url) = webhook_url
+        && !url.is_empty()
+    {
+        specs.push(NotificationSinkSpec {
+            kind: NotificationSinkKind::Webhook,
+            url: url.to_owned(),
+        });
     }
 
-    if let Some(url) = feishu_webhook_url {
-        if !url.is_empty() {
-            specs.push(NotificationSinkSpec {
-                kind: NotificationSinkKind::Feishu,
-                url: url.to_owned(),
-            });
-        }
+    if let Some(url) = feishu_webhook_url
+        && !url.is_empty()
+    {
+        specs.push(NotificationSinkSpec {
+            kind: NotificationSinkKind::Feishu,
+            url: url.to_owned(),
+        });
     }
 
-    if let Some(url) = dingtalk_webhook_url {
-        if !url.is_empty() {
-            specs.push(NotificationSinkSpec {
-                kind: NotificationSinkKind::Dingtalk,
-                url: url.to_owned(),
-            });
-        }
+    if let Some(url) = dingtalk_webhook_url
+        && !url.is_empty()
+    {
+        specs.push(NotificationSinkSpec {
+            kind: NotificationSinkKind::Dingtalk,
+            url: url.to_owned(),
+        });
     }
 
-    if let Some(url) = wecom_webhook_url {
-        if !url.is_empty() {
-            specs.push(NotificationSinkSpec {
-                kind: NotificationSinkKind::Wecom,
-                url: url.to_owned(),
-            });
-        }
+    if let Some(url) = wecom_webhook_url
+        && !url.is_empty()
+    {
+        specs.push(NotificationSinkSpec {
+            kind: NotificationSinkKind::Wecom,
+            url: url.to_owned(),
+        });
     }
 
     build_notifiers_from_specs(enabled, &specs)

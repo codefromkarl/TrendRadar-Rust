@@ -20,6 +20,10 @@ struct ResponseSpec {
     delay: Duration,
 }
 
+type ServerWorkerResult = Result<(), Box<dyn Error + Send + Sync>>;
+type TestServerHandle = thread::JoinHandle<ServerWorkerResult>;
+type TestServer = (String, TestServerHandle);
+
 fn reason_phrase(status: u16) -> &'static str {
     match status {
         200 => "OK",
@@ -31,23 +35,17 @@ fn reason_phrase(status: u16) -> &'static str {
 fn start_test_server(
     routes: HashMap<&'static str, ResponseSpec>,
     expected_requests: usize,
-) -> Result<
-    (
-        String,
-        thread::JoinHandle<Result<(), Box<dyn Error + Send + Sync>>>,
-    ),
-    Box<dyn Error>,
-> {
+) -> Result<TestServer, Box<dyn Error>> {
     let listener = TcpListener::bind("127.0.0.1:0")?;
     let base_url = format!("http://{}", listener.local_addr()?);
 
-    let handle = thread::spawn(move || -> Result<(), Box<dyn Error + Send + Sync>> {
+    let handle = thread::spawn(move || -> ServerWorkerResult {
         let mut workers = Vec::new();
 
         for _ in 0..expected_requests {
             let (mut stream, _) = listener.accept()?;
             let routes = routes.clone();
-            workers.push(thread::spawn(move || -> Result<(), Box<dyn Error + Send + Sync>> {
+            workers.push(thread::spawn(move || -> ServerWorkerResult {
                 let mut buffer = [0_u8; 4096];
                 let read = stream.read(&mut buffer)?;
                 let request = String::from_utf8_lossy(&buffer[..read]);
