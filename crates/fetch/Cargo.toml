@@ -12,6 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+quick-xml.workspace = true
 reqwest.workspace = true
 rss.workspace = true
 serde.workspace = true

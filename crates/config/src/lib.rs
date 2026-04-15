@@ -76,6 +76,9 @@ pub struct RssFeedConfig {
     pub source_id: String,
     /// Feed URL。
     pub url: String,
+    /// 可选最大条目数。
+    #[serde(default)]
+    pub max_items: Option<usize>,
 }
 
 /// 热榜 API 配置。
@@ -475,7 +478,7 @@ mod tests {
     fn rss_feeds_and_hotlist_apis_load_from_json() -> Result<(), Box<dyn Error>> {
         let input = r#"{
             "timezone":"Asia/Shanghai",
-            "rss_feeds":[{"source_id":"rust-blog","url":"https://blog.rust-lang.org/feed.xml"}],
+            "rss_feeds":[{"source_id":"rust-blog","url":"https://blog.rust-lang.org/feed.xml","max_items":20}],
             "hotlist_apis":[{"platform_id":"weibo","url":"https://example.com/api/hotlist"}]
         }"#;
         let config = load_config_from_json_str(input)?;
@@ -486,6 +489,7 @@ mod tests {
             config.rss_feeds[0].url,
             "https://blog.rust-lang.org/feed.xml"
         );
+        assert_eq!(config.rss_feeds[0].max_items, Some(20));
         assert_eq!(config.hotlist_apis.len(), 1);
         assert_eq!(config.hotlist_apis[0].platform_id, "weibo");
         Ok(())

@@ -626,10 +626,11 @@ pub fn run_config_pipeline_with_output(
     let mut fetchers: Vec<Box<dyn Fetcher>> = Vec::new();
 
     for feed in &config.rss_feeds {
-        fetchers.push(Box::new(HttpRssFetcher::with_timeout(
+        fetchers.push(Box::new(HttpRssFetcher::with_timeout_and_limit(
             &feed.source_id,
             &feed.url,
             timeout,
+            feed.max_items,
         )));
     }
 

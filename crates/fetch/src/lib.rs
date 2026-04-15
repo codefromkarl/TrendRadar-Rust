@@ -1,5 +1,8 @@
 //! 抓取层：fixture adapter 与 HTTP adapter。
 
+use quick_xml::Reader;
+use quick_xml::events::Event;
+use reqwest::header::{ACCEPT, ACCEPT_LANGUAGE, CACHE_CONTROL, HeaderMap, HeaderValue, USER_AGENT};
 use serde::Deserialize;
 use std::fs::read_to_string;
 use std::io::Cursor;
@@ -211,7 +214,15 @@ struct WeiboHotlistItem {
 
 #[derive(Debug, Deserialize)]
 struct WeiboHotlistResponse {
-    data: WeiboHotlistData,
+    #[serde(default)]
+    data: Option<WeiboHotlistData>,
+    #[serde(default)]
+    items: Vec<WeiboCurrentItem>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WeiboCurrentItem {
+    title: String,
 }
 
 impl HotlistParser for WeiboHotlistParser {
@@ -222,13 +233,17 @@ impl HotlistParser for WeiboHotlistParser {
                 message: error.to_string(),
             })?;
 
-        let items = response
-            .data
-            .realtime
+        let titles: Vec<String> = if let Some(data) = response.data {
+            data.realtime.into_iter().map(|item| item.word).collect()
+        } else {
+            response.items.into_iter().map(|item| item.title).collect()
+        };
+
+        let items = titles
             .into_iter()
             .enumerate()
-            .map(|(index, item)| NewsItem {
-                title: item.word,
+            .map(|(index, title)| NewsItem {
+                title,
                 source_id: platform_id.to_owned(),
                 rank: (index + 1) as u32,
             })
@@ -252,7 +267,15 @@ struct ZhihuHotlistItem {
 
 #[derive(Debug, Deserialize)]
 struct ZhihuHotlistResponse {
+    #[serde(default)]
     data: Vec<ZhihuHotlistItem>,
+    #[serde(default)]
+    items: Vec<ZhihuCurrentItem>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ZhihuCurrentItem {
+    title: String,
 }
 
 impl HotlistParser for ZhihuHotlistParser {
@@ -263,12 +286,17 @@ impl HotlistParser for ZhihuHotlistParser {
                 message: error.to_string(),
             })?;
 
-        let items = response
-            .data
+        let titles: Vec<String> = if response.data.is_empty() {
+            response.items.into_iter().map(|item| item.title).collect()
+        } else {
+            response.data.into_iter().map(|item| item.title).collect()
+        };
+
+        let items = titles
             .into_iter()
             .enumerate()
-            .map(|(index, item)| NewsItem {
-                title: item.title,
+            .map(|(index, title)| NewsItem {
+                title,
                 source_id: platform_id.to_owned(),
                 rank: (index + 1) as u32,
             })
@@ -577,10 +605,77 @@ pub fn hotlist_parser_for(source_type: &str) -> Box<dyn HotlistParser> {
 
 /// 构建带超时的 reqwest blocking Client。
 fn build_http_client(timeout: Duration) -> reqwest::blocking::Client {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        USER_AGENT,
+        HeaderValue::from_static(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+        ),
+    );
+    headers.insert(
+        ACCEPT,
+        HeaderValue::from_static(
+            "application/json, application/rss+xml, application/atom+xml, application/xml, text/xml, text/plain, */*",
+        ),
+    );
+    headers.insert(
+        ACCEPT_LANGUAGE,
+        HeaderValue::from_static("zh-CN,zh;q=0.9,en;q=0.8"),
+    );
+    headers.insert(CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+
     reqwest::blocking::Client::builder()
+        .use_native_tls()
+        .default_headers(headers)
         .timeout(timeout)
         .build()
         .unwrap_or_else(|_| reqwest::blocking::Client::new())
+}
+
+fn parse_atom_titles(body: &str, url: &str) -> Result<Vec<String>> {
+    let mut reader = Reader::from_str(body);
+    reader.config_mut().trim_text(true);
+
+    let mut buf = Vec::new();
+    let mut titles = Vec::new();
+    let mut in_entry = false;
+    let mut in_entry_title = false;
+
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(event)) => match event.local_name().as_ref() {
+                b"entry" => in_entry = true,
+                b"title" if in_entry => in_entry_title = true,
+                _ => {}
+            },
+            Ok(Event::End(event)) => match event.local_name().as_ref() {
+                b"entry" => in_entry = false,
+                b"title" if in_entry_title => in_entry_title = false,
+                _ => {}
+            },
+            Ok(Event::Text(text)) if in_entry_title => {
+                titles.push(String::from_utf8_lossy(text.as_ref()).into_owned());
+            }
+            Ok(Event::Eof) => break,
+            Err(error) => {
+                return Err(FetchError::ParseResponse {
+                    url: url.to_owned(),
+                    message: error.to_string(),
+                });
+            }
+            _ => {}
+        }
+        buf.clear();
+    }
+
+    if titles.is_empty() {
+        return Err(FetchError::ParseResponse {
+            url: url.to_owned(),
+            message: "no atom entry titles found".to_owned(),
+        });
+    }
+
+    Ok(titles)
 }
 
 /// 基于 HTTP 的 RSS 抓取器。
@@ -590,6 +685,7 @@ pub struct HttpRssFetcher {
     source_id: String,
     url: String,
     client: reqwest::blocking::Client,
+    max_items: Option<usize>,
 }
 
 impl HttpRssFetcher {
@@ -610,6 +706,23 @@ impl HttpRssFetcher {
             source_id: source_id.into(),
             url: url.into(),
             client: build_http_client(timeout),
+            max_items: None,
+        }
+    }
+
+    /// 创建带自定义超时和最大条目数的 HTTP RSS 抓取器。
+    #[must_use]
+    pub fn with_timeout_and_limit(
+        source_id: impl Into<String>,
+        url: impl Into<String>,
+        timeout: Duration,
+        max_items: Option<usize>,
+    ) -> Self {
+        Self {
+            source_id: source_id.into(),
+            url: url.into(),
+            client: build_http_client(timeout),
+            max_items,
         }
     }
 }
@@ -618,27 +731,44 @@ impl Fetcher for HttpRssFetcher {
     fn fetch(&self) -> Result<Vec<NewsItem>> {
         let body = http_get_text(&self.client, &self.url)?;
 
-        let channel = rss::Channel::read_from(Cursor::new(body.as_bytes())).map_err(|error| {
-            FetchError::ParseResponse {
-                url: self.url.clone(),
-                message: error.to_string(),
-            }
-        })?;
+        if let Ok(channel) = rss::Channel::read_from(Cursor::new(body.as_bytes())) {
+            let items = channel
+                .items()
+                .iter()
+                .filter_map(|item| item.title().map(|t| t.to_owned()))
+                .enumerate()
+                .map(|(index, title)| NewsItem {
+                    title,
+                    source_id: self.source_id.clone(),
+                    rank: (index + 1) as u32,
+                })
+                .collect();
 
-        let items = channel
-            .items()
-            .iter()
-            .filter_map(|item| item.title().map(|t| t.to_owned()))
-            .enumerate()
-            .map(|(index, title)| NewsItem {
-                title,
-                source_id: self.source_id.clone(),
-                rank: (index + 1) as u32,
-            })
-            .collect();
+            return Ok(limit_news_items(items, self.max_items));
+        }
 
-        Ok(items)
+        let titles = parse_atom_titles(&body, &self.url)?;
+
+        Ok(limit_news_items(
+            titles
+                .into_iter()
+                .enumerate()
+                .map(|(index, title)| NewsItem {
+                    title,
+                    source_id: self.source_id.clone(),
+                    rank: (index + 1) as u32,
+                })
+                .collect(),
+            self.max_items,
+        ))
     }
+}
+
+fn limit_news_items(mut items: Vec<NewsItem>, max_items: Option<usize>) -> Vec<NewsItem> {
+    if let Some(limit) = max_items {
+        items.truncate(limit);
+    }
+    items
 }
 
 /// 基于 HTTP 的热榜抓取器。
@@ -718,10 +848,12 @@ fn http_get_text(client: &reqwest::blocking::Client, url: &str) -> Result<String
         });
     }
 
-    response.text().map_err(|error| FetchError::Network {
+    let body = response.bytes().map_err(|error| FetchError::Network {
         url: url.to_owned(),
         message: error.to_string(),
-    })
+    })?;
+
+    Ok(String::from_utf8_lossy(&body).into_owned())
 }
 
 // ---------------------------------------------------------------------------
@@ -850,6 +982,77 @@ mod tests {
     }
 
     #[test]
+    fn http_rss_fetcher_parses_atom_feed() -> Result<(), Box<dyn Error>> {
+        let mut server = mockito::Server::new();
+        let feed_xml = r#"<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Atom Feed</title>
+  <entry>
+    <title>Announcing Rust 1.94.1</title>
+  </entry>
+  <entry>
+    <title>docs.rs: building fewer targets by default</title>
+  </entry>
+</feed>"#;
+
+        let mock = server
+            .mock("GET", "/atom.xml")
+            .with_status(200)
+            .with_header("content-type", "application/atom+xml")
+            .with_body(feed_xml)
+            .create();
+
+        let url = format!("{}/atom.xml", server.url());
+        let fetcher = HttpRssFetcher::new("atom-blog", &url);
+        let items = fetcher.fetch()?;
+
+        mock.assert();
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].title, "Announcing Rust 1.94.1");
+        assert_eq!(items[0].source_id, "atom-blog");
+        assert_eq!(items[0].rank, 1);
+        assert_eq!(items[1].title, "docs.rs: building fewer targets by default");
+        assert_eq!(items[1].rank, 2);
+        Ok(())
+    }
+
+    #[test]
+    fn http_rss_fetcher_honors_max_items_limit() -> Result<(), Box<dyn Error>> {
+        let mut server = mockito::Server::new();
+        let feed_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Test Feed</title>
+    <item><title>Item 1</title></item>
+    <item><title>Item 2</title></item>
+    <item><title>Item 3</title></item>
+  </channel>
+</rss>"#;
+
+        server
+            .mock("GET", "/limited.xml")
+            .with_status(200)
+            .with_header("content-type", "application/xml")
+            .with_body(feed_xml)
+            .create();
+
+        let url = format!("{}/limited.xml", server.url());
+        let fetcher = HttpRssFetcher::with_timeout_and_limit(
+            "limited-blog",
+            &url,
+            Duration::from_secs(30),
+            Some(2),
+        );
+        let items = fetcher.fetch()?;
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].title, "Item 1");
+        assert_eq!(items[1].title, "Item 2");
+        Ok(())
+    }
+
+    #[test]
     fn http_rss_fetcher_returns_empty_for_empty_channel() -> Result<(), Box<dyn Error>> {
         let mut server = mockito::Server::new();
         let feed_xml = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -934,6 +1137,10 @@ mod tests {
 
         let mock = server
             .mock("GET", "/hotlist")
+            .match_header(
+                "user-agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            )
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(body)
@@ -1143,6 +1350,27 @@ mod tests {
     }
 
     #[test]
+    fn weibo_hotlist_parser_parses_current_items_shape() -> Result<(), Box<dyn Error>> {
+        let parser = WeiboHotlistParser;
+        let raw = r#"{
+            "status":"cache",
+            "id":"weibo",
+            "updatedTime":1776171107780,
+            "items":[
+                {"id":"1","title":"微博热搜1","url":"https://example.com/1","mobileUrl":"https://example.com/m1"},
+                {"id":"2","title":"微博热搜2","url":"https://example.com/2","mobileUrl":"https://example.com/m2"}
+            ]
+        }"#;
+
+        let items = parser.parse(raw, "weibo")?;
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].title, "微博热搜1");
+        assert_eq!(items[1].title, "微博热搜2");
+        Ok(())
+    }
+
+    #[test]
     fn zhihu_hotlist_parser_parses_valid_json() -> Result<(), Box<dyn Error>> {
         let parser = ZhihuHotlistParser;
         let raw = r#"{
@@ -1187,6 +1415,27 @@ mod tests {
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].title, "问题1");
+        Ok(())
+    }
+
+    #[test]
+    fn zhihu_hotlist_parser_parses_current_items_shape() -> Result<(), Box<dyn Error>> {
+        let parser = ZhihuHotlistParser;
+        let raw = r#"{
+            "status":"cache",
+            "id":"zhihu",
+            "updatedTime":1776171107698,
+            "items":[
+                {"id":"1","title":"知乎热榜1","extra":{"info":"100万热度"}},
+                {"id":"2","title":"知乎热榜2","extra":{"info":"50万热度"}}
+            ]
+        }"#;
+
+        let items = parser.parse(raw, "zhihu")?;
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].title, "知乎热榜1");
+        assert_eq!(items[1].title, "知乎热榜2");
         Ok(())
     }
 
