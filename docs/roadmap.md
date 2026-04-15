@@ -1,12 +1,12 @@
 # TrendRadar Rust 路线图
 
 > 首版闭合后（Wave 6），记录后续任务方向与优先级。
-> 最后更新：Wave 8 / B4 完成后
+> 最后更新：迁移收尾校准后
 
 ## 当前状态
 
-- v1.2 功能补齐已进入文档校准阶段
-- 221 tests passed, 0 clippy issues
+- v1.2 迁移收尾已完成口径校准，后续转入增量演进 / 生态扩展
+- 232 tests passed, 0 clippy issues
 - Release binary: 9.6MB
 - CLI: `--config/--db/--output/--verbose/--dry-run/--help/--version`
 - 输出格式: `json / html / both / table / markdown`

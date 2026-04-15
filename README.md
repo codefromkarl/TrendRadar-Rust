@@ -27,7 +27,7 @@
 
 TrendRadar Rust 不是把旧系统逐文件翻译成 Rust，而是围绕“配置 -> 抓取 -> 归一化 -> 分析 -> 存储 -> 输出”这条主链路，重新建立一个更小、更稳、更容易验证的趋势监控内核。
 
-当前仓库仍处于环境准备和迁移基线收敛阶段。它已经具备 Rust workspace、验证入口、Git 协作约束、系统测试模板和迁移文档，但默认还不把旧 Python 系统的全部业务逻辑直接搬过来。
+当前仓库已经完成 Rust 内核主链路迁移，处于 v1.2 工程收口和迁移收尾校准阶段。它已经具备 Rust workspace、验证入口、Git 协作约束、系统测试基线和迁移文档，但仍不追求把旧 Python 系统的全部生态能力一次性搬到 Rust。
 
 ## 为什么需要这个仓库
 
@@ -66,7 +66,8 @@ flowchart LR
 ## 当前状态
 
 - 当前阶段：v1.2 工程收口，已完成 Wave 8 级别的核心功能补齐
-- 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 启动链路、`config -> fetch -> analyze -> storage -> report` 的 fixture / HTTP 系统链路、多个 crate 级边界样例，以及根级 `tests/system/` 下 66 条成功路径 / 空输入 / 错误路径 / 阶段组合样例；当前全工作区共 221 tests 通过
+- 当前收尾判断：当前 Rust 内核重构迁移已经可以进入收尾阶段，详见 [项目收尾说明](./docs/project-closeout.md)
+- 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 启动链路、`config -> fetch -> analyze -> storage -> report` 的 fixture / HTTP 系统链路、多个 crate 级边界样例，以及根级 `tests/system/` 下 68 条成功路径 / 空输入 / 错误路径 / 阶段组合样例；当前全工作区共 232 tests 通过
 - 已建立内容：CI 基础验证、系统测试模板、Git hooks、提交模板、并行迁移规则
 - 当前不包含：真实远程对象存储实现、真实远程 LLM provider、完整 MCP 协议兼容层、Homebrew 等更完整的分发入口，以及更大范围的生态接入
 
@@ -215,6 +216,7 @@ cargo bench --package trendradar-app --bench pipeline_bench
 - [架构说明](./docs/architecture.md)
 - [性能基线](./docs/benchmark-baseline.md)
 - [Python 对比基线](./docs/benchmark-python-baseline.md)
+- [项目收尾说明](./docs/project-closeout.md)
 - [环境准备](./docs/environment-setup.md)
 - [迁移策略](./docs/migration-strategy.md)
 - [实施计划](./docs/implementation-plan.md)
