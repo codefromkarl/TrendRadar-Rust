@@ -44,8 +44,8 @@
 | JSON / 结构化输出 | `report` | 中 | 直接实现最小版本 | 对固定内部模型输出稳定结果 |
 | CLI 与运行编排 | `app` | 高 | 薄编排 | 能串起配置、抓取、分析、存储和输出的最小闭环，且业务规则仍留在上游 crate |
 | HTML 报告 | `report` | 中 | Wave 6 已实现精简 HTML | 自包含 HTML5，内联 CSS，XSS 转义 |
-| 通知渠道 | `notification` | 中 | Wave 8 / P5 已实现核心渠道与 sink 模型 | `Notifier` trait + Webhook / Console / Feishu / DingTalk / WeCom / Slack |
-| 最小 AI 分析旁路 | `ai` | 低 | 最小 provider + app 旁路集成 | `mock` provider、配置字段与 Markdown 分析输出已落地 |
+| 通知渠道 | `notification` | 中 | Wave 8 / P5 已实现核心渠道与 sink 模型，第 1 轮继续补 Discord / ntfy | `Notifier` trait + Webhook / Console / Feishu / DingTalk / WeCom / Slack / Discord / ntfy |
+| 最小 AI 分析旁路 | `ai` | 低 | 最小 provider + app 旁路集成 | `mock` provider、最小 `openai-compatible` provider、配置字段与 Markdown 分析输出已落地 |
 | 最小 MCP 查询工具 | `mcp` | 低 | 查询型工具服务入口 | `tools/list` 与查询类 `tools/call` 已落地 |
 | AI 翻译 | 暂不进入核心 crate | 低 | 延后 | 当前不阻塞迁移收尾 |
 | 版本检查 / 自动开浏览器 / 复杂环境分支 | 不迁移 | 无 | 删除 | 不进入 Rust 首版 |
@@ -113,6 +113,7 @@ Wave 7 完成 v1.1.0 首版增强，新增以下边界约束：
 - `fetch` 的 `HttpHotlistFetcher` 保持向后兼容：`new()` 和 `with_timeout()` 仍使用 `GenericHotlistParser`，新构造器 `with_parser()` 接受注入
 - `config` 的 `HotlistApiConfig.source_type` 为可选字段，缺失时默认 `"generic"`，零破坏性升级
 - `app` 的 pipeline 根据 `api.source_type` 选择 parser，parser 选择逻辑封装在 `hotlist_parser_for()` 工厂函数中
+- `GenericHotlistParser` 当前除 fixture 数组格式外，也兼容 `newsnow` 的 `{"items":[...]}` 包装响应；第 1 轮已把 `douyin` / `wallstreetcn-hot` / `ifeng` / `tieba` 纳入这一兼容路径
 - `app` 的 CLI `--output` 参数扩展为 `json / html / both / table / markdown`，路由逻辑在 main.rs
 - `report` 新增 `render_news_table()` 和 `render_news_markdown()`，遵循现有 render 函数签名模式
 - `PipelineResult` 扩展 `report_table` 和 `report_markdown` 字段，与 `report_json`/`report_html` 同级

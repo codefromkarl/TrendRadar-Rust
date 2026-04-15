@@ -46,14 +46,18 @@
 | `notification.feishu_webhook_url` | `string?` | `null` | 飞书机器人 Webhook URL |
 | `notification.dingtalk_webhook_url` | `string?` | `null` | 钉钉机器人 Webhook URL |
 | `notification.wecom_webhook_url` | `string?` | `null` | 企业微信机器人 Webhook URL |
-| `storage.backend` | `string` | `"sqlite"` | 存储后端类型（当前支持 `sqlite`，预留 `s3`） |
-| `storage.remote` | `object?` | `null` | 远程对象存储占位配置 |
+| `storage.backend` | `string` | `"sqlite"` | 存储后端类型（当前支持 `sqlite` / `s3`） |
+| `storage.remote` | `object?` | `null` | 远程对象存储配置；`provider` 支持 `s3` / `aws-s3` / `oss` / `aliyun-oss` / `mock-s3` |
 | `ai_analysis.enabled` | `bool` | `false` | 是否启用 AI 分析旁路 |
 | `ai_analysis.provider` | `string` | `"mock"` | AI provider 名称 |
 | `ai_analysis.timeout_secs` | `u64` | `15` | AI 分析超时秒数 |
 | `ai_analysis.retry_attempts` | `u8` | `0` | AI 分析重试次数 |
 | `ai_analysis.max_items` | `usize` | `5` | AI 分析最大纳入条目数 |
 | `ai_analysis.prompt` | `string?` | `null` | 可选 AI prompt 提示 |
+| `ai_analysis.model` | `string?` | `null` | 真实 provider 使用的模型名 |
+| `ai_analysis.base_url` | `string?` | `null` | 真实 provider 的 API URL |
+| `ai_analysis.api_key` | `string?` | `null` | 直接提供的 API key |
+| `ai_analysis.api_key_env` | `string?` | `null` | API key 对应环境变量名 |
 | `hotlist_apis[].source_type` | `string?` | `"generic"` | 热榜数据源类型 |
 
 ## 最小配置示例

@@ -3,7 +3,7 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use trendradar_ai::{provider_for, render_ai_analysis_markdown};
+use trendradar_ai::{ProviderConfig, provider_for, render_ai_analysis_markdown};
 use trendradar_domain::RunContext;
 use trendradar_report::render_news_json;
 use trendradar_storage::{NewsRepository, SqliteNewsRepository};
@@ -85,8 +85,18 @@ fn call_tool(name: &str, args: ToolCallArgs) -> Result<Value> {
         }
         "ai.analyze" => {
             let context = run_context(&args.timezone)?;
-            let provider = provider_for(&args.provider, args.max_items, None)
-                .context("failed to initialize ai provider")?;
+            let provider = provider_for(&ProviderConfig {
+                provider: args.provider,
+                timeout_secs: 15,
+                retry_attempts: 0,
+                max_items: args.max_items,
+                prompt: None,
+                model: None,
+                base_url: None,
+                api_key: None,
+                api_key_env: None,
+            })
+            .context("failed to initialize ai provider")?;
             let analysis = provider
                 .analyze(&items, &context)
                 .context("failed to generate ai analysis")?;

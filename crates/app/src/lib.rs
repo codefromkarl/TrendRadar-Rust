@@ -7,7 +7,7 @@ use std::time::Duration;
 use chrono::{DateTime, Datelike, Timelike, Utc, Weekday};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
-use trendradar_ai::{provider_for, render_ai_analysis_markdown};
+use trendradar_ai::{ProviderConfig, provider_for, render_ai_analysis_markdown};
 use trendradar_analyze::{
     RankedNews, SourceSummary, filter_by_keywords, group_news_by_source, rank_news,
 };
@@ -28,7 +28,10 @@ use trendradar_report::{
 use trendradar_schedule::{
     ScheduleContext, ScheduleDecision, decision_from_config, decision_from_config_at,
 };
-use trendradar_storage::{FileObjectStoreNewsRepository, NewsRepository, SqliteNewsRepository};
+use trendradar_storage::{
+    FileObjectStoreNewsRepository, NewsRepository, OpendalObjectStoreNewsRepository,
+    SqliteNewsRepository,
+};
 
 /// 默认数据库文件名。
 const DEFAULT_DB_FILENAME: &str = "trendradar.db";
@@ -178,6 +181,8 @@ fn notification_sink_kind(kind: ConfigNotificationSinkKind) -> NotificationSinkK
         ConfigNotificationSinkKind::Dingtalk => NotificationSinkKind::Dingtalk,
         ConfigNotificationSinkKind::Wecom => NotificationSinkKind::Wecom,
         ConfigNotificationSinkKind::Slack => NotificationSinkKind::Slack,
+        ConfigNotificationSinkKind::Discord => NotificationSinkKind::Discord,
+        ConfigNotificationSinkKind::Ntfy => NotificationSinkKind::Ntfy,
     }
 }
 
@@ -225,6 +230,12 @@ fn notification_sink_specs(config: &NotificationConfig) -> Vec<NotificationSinkS
     }
     if let Some(url) = config.wecom_webhook_url.as_deref() {
         push_notification_sink_spec(&mut specs, NotificationSinkKind::Wecom, url);
+    }
+    if let Some(url) = config.discord_webhook_url.as_deref() {
+        push_notification_sink_spec(&mut specs, NotificationSinkKind::Discord, url);
+    }
+    if let Some(url) = config.ntfy_topic_url.as_deref() {
+        push_notification_sink_spec(&mut specs, NotificationSinkKind::Ntfy, url);
     }
 
     specs
@@ -312,21 +323,50 @@ fn run_pipeline_with_fetchers(
             let remote = config.storage.remote.as_ref().ok_or_else(|| {
                 anyhow::anyhow!("remote storage config is required for s3 backend")
             })?;
-            match remote.provider.as_deref() {
-                Some("mock-s3") => {
+            let provider = remote
+                .provider
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("remote storage provider is required"))?;
+            let prefix = remote.prefix.as_deref().unwrap_or("trendradar");
+
+            match provider {
+                "mock-s3" => {
                     let root = remote
                         .endpoint
                         .as_deref()
                         .ok_or_else(|| anyhow::anyhow!("mock-s3 endpoint path is required"))?;
-                    let prefix = remote.prefix.as_deref().unwrap_or("trendradar");
                     Box::new(FileObjectStoreNewsRepository::open(
                         Path::new(root),
                         prefix,
                     )?)
                 }
+                "s3" | "aws-s3" => {
+                    let bucket = remote
+                        .bucket
+                        .as_deref()
+                        .ok_or_else(|| anyhow::anyhow!("remote storage bucket is required"))?;
+                    Box::new(OpendalObjectStoreNewsRepository::open_s3(
+                        bucket,
+                        remote.endpoint.as_deref(),
+                        remote.region.as_deref(),
+                        prefix,
+                    )?)
+                }
+                "oss" | "aliyun-oss" => {
+                    let bucket = remote
+                        .bucket
+                        .as_deref()
+                        .ok_or_else(|| anyhow::anyhow!("remote storage bucket is required"))?;
+                    let endpoint = remote.endpoint.as_deref().ok_or_else(|| {
+                        anyhow::anyhow!("remote storage endpoint is required for oss provider")
+                    })?;
+                    Box::new(OpendalObjectStoreNewsRepository::open_oss(
+                        bucket, endpoint, prefix,
+                    )?)
+                }
                 _ => {
                     return Err(anyhow::anyhow!(
-                        "remote storage backend s3 is not implemented yet"
+                        "unsupported remote storage provider: {provider}"
                     ));
                 }
             }
@@ -389,11 +429,18 @@ fn run_pipeline_with_fetchers(
     };
 
     let ai_analysis_markdown = if config.ai_analysis.enabled {
-        match provider_for(
-            &config.ai_analysis.provider,
-            config.ai_analysis.max_items,
-            config.ai_analysis.prompt.clone(),
-        ) {
+        let provider_config = ProviderConfig {
+            provider: config.ai_analysis.provider.clone(),
+            timeout_secs: config.ai_analysis.timeout_secs,
+            retry_attempts: config.ai_analysis.retry_attempts,
+            max_items: config.ai_analysis.max_items,
+            prompt: config.ai_analysis.prompt.clone(),
+            model: config.ai_analysis.model.clone(),
+            base_url: config.ai_analysis.base_url.clone(),
+            api_key: config.ai_analysis.api_key.clone(),
+            api_key_env: config.ai_analysis.api_key_env.clone(),
+        };
+        match provider_for(&provider_config) {
             Ok(provider) => match provider.analyze(&stored_items, &context) {
                 Ok(analysis) => Some(render_ai_analysis_markdown(&analysis)),
                 Err(error) => {
@@ -807,13 +854,17 @@ mod tests {
         notification.webhook_url = Some("https://hooks.example.com/webhook".to_owned());
         notification.wecom_webhook_url =
             Some("https://qyapi.weixin.qq.com/cgi-bin/webhook/send".to_owned());
+        notification.discord_webhook_url = Some("https://discord.com/api/webhooks/two".to_owned());
+        notification.ntfy_topic_url = Some("https://ntfy.sh/trendradar".to_owned());
 
         let specs = notification_sink_specs(&notification);
 
-        assert_eq!(specs.len(), 3);
+        assert_eq!(specs.len(), 5);
         assert_eq!(specs[0].kind, NotifierSinkKind::Slack);
         assert_eq!(specs[1].kind, NotifierSinkKind::Webhook);
         assert_eq!(specs[2].kind, NotifierSinkKind::Wecom);
+        assert_eq!(specs[3].kind, NotifierSinkKind::Discord);
+        assert_eq!(specs[4].kind, NotifierSinkKind::Ntfy);
     }
 
     #[test]
@@ -1077,10 +1128,17 @@ mod tests {
     }
 
     #[test]
-    fn remote_storage_backend_is_rejected_until_implemented() {
+    fn real_s3_provider_requires_bucket_config() {
         let fetchers: Vec<Box<dyn Fetcher>> = Vec::new();
         let mut config = test_config();
         config.storage.backend = StorageBackend::S3;
+        config.storage.remote = Some(trendradar_config::RemoteStorageConfig {
+            provider: Some("s3".to_owned()),
+            bucket: None,
+            endpoint: Some("http://127.0.0.1:9000".to_owned()),
+            region: Some("auto".to_owned()),
+            prefix: Some("trendradar".to_owned()),
+        });
 
         let Err(error) = run_pipeline_with_fetchers(
             &config,
@@ -1091,13 +1149,13 @@ mod tests {
             true,
             OutputMode::All,
         ) else {
-            unreachable!("remote storage should be rejected until implemented");
+            unreachable!("missing bucket should be rejected");
         };
 
         assert!(
             error
                 .to_string()
-                .contains("remote storage config is required for s3 backend")
+                .contains("remote storage bucket is required")
         );
     }
 

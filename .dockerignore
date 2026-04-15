@@ -1,0 +1,9 @@
+target
+!target/release
+!target/release/trendradar
+.git
+.github
+deploy/runtime/data
+deploy/runtime/config.json
+trendradar.db
+config-ai-scan.json

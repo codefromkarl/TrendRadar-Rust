@@ -1,0 +1,12 @@
+[Unit]
+Description=Run TrendRadar every 30 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=30min
+Unit=trendradar.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+

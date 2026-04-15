@@ -11,13 +11,57 @@
 - CLI: `--config/--db/--output/--verbose/--dry-run/--help/--version`
 - 输出格式: `json / html / both / table / markdown`
 - 热榜解析: `generic / weibo / zhihu / bilibili / toutiao / baidu / pengpai / cls`
+- 第 1 轮目标平台补齐：`douyin / wallstreetcn-hot / ifeng / tieba`
 - CI/CD: fmt + clippy + nextest + release binary (Linux/macOS/Windows)
+
+## 当前执行轮次
+
+- 第 1 轮：`v2.0.0-beta`，目标是“对外可用化”
+- 第 2 轮：`v2.1.0`，目标是“真实生态接入”
+
+第 1 轮范围：
+
+- `D1` 部署标准化
+- `D2` 对外展示与交付文档
+- `B3` 热榜平台扩展
+- `B1` 通知渠道扩展
+- `D3` 长稳运行验证
+
+第 2 轮范围：
+
+- `C1` 真实远程对象存储
+- `C2` 真实 AI Provider
+- `C3` MCP 协议补强
+
+当前不纳入两轮执行：
+
+- `P3` AI 翻译
+- 更大范围的分发入口
+- 全量通知矩阵与历史兼容层
 
 ---
 
 ## 待办清单
 
 ### 🔴 高优先级（建议立即或在 v1.1 中完成）
+
+#### D1: 部署标准化
+
+- **目标**: 官方 one-shot Docker 与 `systemd timer` 部署入口
+- **当前**: 已补 `Dockerfile`、`deploy/docker-compose.yml`、`deploy/systemd/` 与部署文档
+- **状态**: ✅ 已完成（第 1 轮）
+
+#### D2: 对外展示与交付文档
+
+- **目标**: 一页式对外能力总览与稳定性说明
+- **当前**: 已补 `docs/public-capability-overview.md` 与 `docs/runtime-stability.md`
+- **状态**: ✅ 已完成（第 1 轮）
+
+#### D3: 长稳运行验证
+
+- **目标**: 把测试通过转换成可复用的运行稳定性证据
+- **当前**: 已收口到 `docs/runtime-stability.md`，复用慢源/失败源恢复、多轮重复执行一致性、大输入稳定性与多格式输出一致性测试
+- **状态**: ✅ 已完成（第 1 轮）
 
 #### O1: CI/CD Pipeline
 
@@ -34,6 +78,7 @@
 - **产出**: 各平台解析器 + `source_type` 配置字段
 - **状态**: ✅ 已完成（Wave 7）
 - **依赖**: 无
+- **第 1 轮增量**: `GenericHotlistParser` 已兼容 `newsnow` 包装响应，并把 `douyin / wallstreetcn-hot / ifeng / tieba` 纳入显式支持
 
 ---
 
@@ -54,7 +99,7 @@
 #### E4: 更多通知渠道
 
 - **目标**: 飞书/钉钉/企业微信通知适配
-- **当前**: Webhook + Console + 飞书 + 钉钉 + 企业微信
+- **当前**: Webhook + Console + 飞书 + 钉钉 + 企业微信 + Slack + Discord + ntfy
 - **架构**: `Notifier` trait 已就位，新增实现即可
 - **状态**: ✅ 已完成
 
@@ -117,7 +162,7 @@
 
 - **目标**: LLM 驱动的新闻摘要/分析
 - **前置**: P1 或独立 HTTP 服务
-- **当前**: 已落独立 `trendradar-ai` crate、`mock` provider、配置字段和 app 旁路集成；真实远程 provider 仍待补
+- **当前**: 已落独立 `trendradar-ai` crate、`mock` provider、最小 `openai-compatible` provider、配置字段和 app 旁路集成
 - **状态**: ✅ 最小版本已完成
 
 #### P3: AI 翻译
@@ -130,7 +175,7 @@
 
 - **目标**: S3/OSS adapter
 - **架构**: `NewsRepository` trait 已就位
-- **当前**: 已落 `storage.backend = "s3" + provider = "mock-s3"` 的 file-backed object store prototype，真实云 provider 仍待补
+- **当前**: 已落 `storage.backend = "s3"` 的真实对象存储接入，支持 `provider = "s3" | "aws-s3" | "oss" | "aliyun-oss"`，并保留 `mock-s3` 文件系统原型用于本地验证
 - **状态**: ✅ 最小版本已完成
 
 #### P5: 可扩展通知 Sink

@@ -31,22 +31,121 @@
 5. 若任务改变 crate 边界、CLI 参数、验证命令或配置契约，必须同步更新 README 和对应文档。
 6. 若任务仍处于设计分歧阶段，只允许补文档、fixture、测试骨架，不直接扩实现。
 
-## 执行顺序总览
+## 当前执行主线（2026-04）
 
-建议按下面顺序推进：
+当前仓库已经结束“迁移收尾”口径，后续执行统一按两轮推进：
 
-1. A1 性能基线与 benchmark
-2. A2 报告按需渲染
-3. A3 SQLite 批量写入
-4. A4 多源并发抓取
-5. B1 通知渠道扩展
-6. B2 调度增强
-7. B3 热榜平台扩展
-8. B4 错误码规范
-9. B5 安装与分发入口
-10. C1 远程对象存储
-11. C2 AI 分析
-12. C3 MCP Server
+- 第 1 轮：`v2.0.0-beta`，目标是“对外可用化”
+- 第 2 轮：`v2.1.0`，目标是“真实生态接入”
+
+第 1 轮只做下面 5 项：
+
+1. `D1` 部署标准化
+2. `D2` 对外展示与交付文档
+3. `B3` 热榜平台扩展
+4. `B1` 通知渠道扩展
+5. `D3` 长稳运行验证
+
+第 2 轮只做下面 3 项：
+
+1. `C1` 真实远程对象存储
+2. `C2` 真实 AI Provider
+3. `C3` MCP 协议补强
+
+下面这些内容不纳入当前两轮执行：
+
+- `P3` AI 翻译
+- 更大范围分发生态（如 Homebrew、更多安装入口）
+- 全量通知矩阵与所有历史兼容层
+
+## 当前执行顺序总览
+
+当前增量主线按下面顺序推进：
+
+1. `D1` 部署标准化
+2. `D2` 对外展示与交付文档
+3. `B3` 热榜平台扩展
+4. `B1` 通知渠道扩展
+5. `D3` 长稳运行验证
+6. `C1` 真实远程对象存储
+7. `C2` 真实 AI Provider
+8. `C3` MCP 协议补强
+
+其中：
+
+- `A1`~`A4` 已完成，不再作为当前主线阻塞项
+- `B2` / `B4` / `B5` 已在当前仓库口径下完成，不再单独拆轮执行
+
+## Phase D：对外可用化（当前执行主线）
+
+### D1. 部署标准化
+
+- 状态：`done`
+- 目标：把当前“本地 CLI 可运行”推进到“官方部署入口明确、文档可执行、首次安装可跑通”。
+- 主要范围：`Dockerfile`、`deploy/`、`README.md`、`docs/deployment.md`
+- 关键输出：
+- 官方 `Dockerfile`
+- 官方 `docker-compose` one-shot 运行入口
+- 二进制部署的 `systemd service/timer` 样例
+- 首次部署文档与最小可运行配置模板
+- 建议步骤：
+- 先固定 one-shot 运行模型，不把容器误包装成常驻 Web 服务
+- 统一 `--config` / `--db` 挂载路径，避免和自动发现逻辑冲突
+- 使用 `--dry-run` 补部署自检路径
+- 验证命令：
+- `docker build -t trendradar:local .`
+- `docker run --rm trendradar:local --version`
+- `docker run --rm -v "$PWD/deploy/runtime/config.json:/config/config.json:ro" trendradar:local --config /config/config.json --dry-run`
+- `cargo test --workspace`
+- 完成标准：
+- 新机器可按文档完成本地或容器启动
+- Docker 与二进制部署入口均有可复制样例
+- 文档中的命令与当前 CLI 行为一致
+- 当前实现：
+- 已补 `Dockerfile`、`deploy/docker-compose.yml`、`deploy/systemd/trendradar.service`、`deploy/systemd/trendradar.timer`
+- 已补 `deploy/examples/config.rss.json` 最小示例配置与 `docs/deployment.md`
+- 当前 Docker 入口使用本机 release binary 打包，优先保证 one-shot 部署路径可验证
+- 验证结果：
+- `cargo build --release -p trendradar-app`
+- `docker run --rm trendradar:local --version`
+- `docker run --rm -v "$PWD/deploy/runtime/config.json:/config/config.json:ro" trendradar:local --config /config/config.json --dry-run`
+
+### D2. 对外展示与交付文档
+
+- 状态：`done`
+- 目标：把“对外可展示的数据”收敛成一页文档，避免继续依赖内部迁移术语。
+- 主要范围：`README.md`、`docs/`、开发日志
+- 关键输出：
+- 平台支持、通知支持、性能对比、部署方式、运行稳定性口径
+- Rust / Python 对比表
+- 明确“不支持 / 暂未纳入”的边界列表
+- 完成标准：
+- 外部读者不需要翻开发日志即可理解产品现状
+- README 首页能直接链接这份文档
+- 当前实现：
+- 已补 `docs/public-capability-overview.md`
+- 已补 `docs/runtime-stability.md`
+- `README.md` 已新增这两份文档入口
+- 当前文档已显式收口平台、通知、性能、部署与当前边界
+
+### D3. 长稳运行验证
+
+- 状态：`done`
+- 目标：把“测试通过”补成“可长期运行”的证据。
+- 主要范围：`tests/`、`docs/`、部署样例
+- 关键输出：
+- 至少一份连续运行验证记录
+- 慢源 / 失败源 / 空输入恢复报告
+- 资源占用与退出码观察结果
+- 完成标准：
+- 形成一份可引用的运行稳定性报告
+- 能对外说明适合怎样的运行频率和部署方式
+- 当前实现：
+- 已复用根级系统测试中的慢源 / 失败源恢复、多轮重复执行一致性、大输入稳定性与多格式一致性证据
+- 已补 `docs/runtime-stability.md`，把这些验证入口收口为部署前检查说明
+- 当前验证结果：
+- `cargo test --workspace`
+- 当前工作区总数：`235 tests passed`
 
 ## Phase A：性能与运行时效率
 
@@ -173,7 +272,7 @@
 ### B1. 通知渠道扩展
 
 - 状态：`done`
-- 目标：在现有 `Notifier` trait 基础上补齐飞书、钉钉、企业微信通知。
+- 目标：在现有 `Notifier` trait 基础上补齐核心通知渠道，并建立可继续扩展的 sink 模型。
 - 主要范围：`crates/notification`、`crates/config`、`crates/app`
 - 关键输出：
 - 新增各平台 notifier 实现
@@ -193,7 +292,8 @@
 - 至少一份配置样例文档可复用
 - 当前实现：
 - `NotificationConfig` 已扩展 `feishu_webhook_url`、`dingtalk_webhook_url`、`wecom_webhook_url`
-- `notification` crate 已新增 `FeishuNotifier`、`DingTalkNotifier`、`WeComNotifier`
+- 第 1 轮继续补齐 `discord_webhook_url` 与 `ntfy_topic_url`
+- `notification` crate 已新增 `FeishuNotifier`、`DingTalkNotifier`、`WeComNotifier`、`DiscordNotifier`、`NtfyNotifier`
 - `build_notifiers()` 工厂函数现支持同时构建多渠道通知器，且无外部渠道时仍默认回退到 `ConsoleNotifier`
 - `app` 仍只负责把配置映射到 notifier 工厂，不包含渠道 payload 细节
 - 验证结果：
@@ -248,6 +348,7 @@
 - 当前实现：
 - `fetch` 已新增 `ToutiaoHotlistParser`、`BaiduHotlistParser`、`PengpaiHotlistParser`、`ClsHotlistParser`
 - `hotlist_parser_for()` 已支持 `toutiao`、`baidu`、`pengpai`、`cls`，并兼容 `thepaper`、`cls-hot` 别名路由
+- 第 1 轮继续把 `GenericHotlistParser` 扩展为兼容 `newsnow` 的 `{"items":[...]}` 包装响应，并把 `douyin`、`wallstreetcn-hot`、`ifeng`、`tieba` 纳入显式支持
 - 已新增 `fixtures/system/config/hotlist-multi-platform-http.json` 作为多平台 HTTP 配置样例
 - `crates/app/tests/wave4_http_pipeline.rs` 已补多平台 `source_type` 路由测试，验证 `app -> fetch parser factory -> HTTP pipeline` 闭环
 - 验证结果：
@@ -329,10 +430,10 @@
 - 本地路径仍是默认实现
 - 当前进展：
 - `config` 已新增 `storage.backend` 与远程对象存储配置
-- `app` 当前已支持 `storage.backend = "s3" + provider = "mock-s3"` 的文件系统对象存储原型，其余真实远程 provider 仍显式拒绝，避免误回退到本地 SQLite
+- `app` 当前已支持 `storage.backend = "s3" + provider = "s3" | "aws-s3" | "oss" | "aliyun-oss"` 的真实对象存储路由，并保留 `provider = "mock-s3"` 的文件系统原型用于本地验证
 - 已新增远程对象布局契约文档、fixture 和系统测试骨架，用于先固定 key 布局与读取顺序
-- `storage` 已新增 `MockRemoteNewsRepository` 与 `FileObjectStoreNewsRepository` 两层原型，用于打通仓储语义、布局语义和最小可切换路径
-- 真实云 provider 仍可作为后续增强，但当前最小闭环已形成
+- `storage` 已新增基于 OpenDAL 的 `OpendalObjectStoreNewsRepository`，并保留 `MockRemoteNewsRepository` 与 `FileObjectStoreNewsRepository` 作为仓储语义和本地布局验证入口
+- 当前最小闭环已形成；后续增强主要落在凭证治理、provider 细项兼容与更完整回归矩阵
 
 ### C2. AI 分析
 
@@ -347,10 +448,10 @@
 - 完成标准：
 - AI 能力为可选旁路，不阻塞核心抓取与存储链路
 - 当前进展：
-- 已新增独立 `trendradar-ai` crate，提供 `AnalysisProvider` trait、`mock` provider 和 Markdown 渲染
-- `config.ai_analysis` 已新增最小配置字段
+- 已新增独立 `trendradar-ai` crate，提供 `AnalysisProvider` trait、`mock` provider、最小 `openai-compatible` provider 和 Markdown 渲染
+- `config.ai_analysis` 已新增最小配置字段，并补 `model/base_url/api_key/api_key_env`
 - `app` 已可在开启配置后生成 `ai_analysis_markdown`，provider 不可用时只 warn + skip
-- 真实远程 LLM provider、timeout/retry 精细控制和输出格式扩展仍待后续补齐
+- 更多真实 provider、timeout/retry 精细控制和输出格式扩展仍待后续补齐
 
 ### C3. MCP Server
 

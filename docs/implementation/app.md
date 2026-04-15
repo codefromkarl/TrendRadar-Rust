@@ -82,7 +82,7 @@
 - Wave 6 已补 `AppConfig.notification` 配置字段（`NotificationConfig { enabled, webhook_url }`）
 - Wave 6 已补通知在 pipeline push 阶段发送，失败仅 warn 不中断
 - Wave 8 已补 `notification.sinks` 可扩展通知配置、`build_notifiers_from_specs()` 构建入口和 Slack sink
-- Wave 8 保持对 `notification.webhook_url` / `feishu_webhook_url` / `dingtalk_webhook_url` / `wecom_webhook_url` 的兼容合并，不要求一次性迁完旧配置
+- 第 1 轮已继续补 Discord 与 ntfy sink，并保持对 `notification.webhook_url` / `feishu_webhook_url` / `dingtalk_webhook_url` / `wecom_webhook_url` / `discord_webhook_url` / `ntfy_topic_url` 的兼容合并，不要求一次性迁完旧配置
 - Wave 6 已补 `docs/migration-guide.md` Python→Rust 配置迁移指南
 - Wave 6 Release 构建：9.6MB binary，首版产品边界（§7）全部闭合
 - Wave 7 已补 `--output table/markdown` CLI 路由（终端彩色表格 + GFM Markdown 表格）

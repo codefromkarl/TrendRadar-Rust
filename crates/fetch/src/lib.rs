@@ -174,22 +174,62 @@ pub trait HotlistParser: Send + Sync {
 #[derive(Debug)]
 pub struct GenericHotlistParser;
 
+#[derive(Debug, Deserialize)]
+struct GenericHotlistWrapper {
+    #[serde(default)]
+    items: Vec<GenericHotlistWrapperItem>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GenericHotlistWrapperItem {
+    title: Option<String>,
+}
+
 impl HotlistParser for GenericHotlistParser {
     fn parse(&self, raw: &str, platform_id: &str) -> Result<Vec<NewsItem>> {
-        let items: Vec<HotlistFixtureItem> =
+        if let Ok(items) = serde_json::from_str::<Vec<HotlistFixtureItem>>(raw) {
+            return Ok(items
+                .into_iter()
+                .map(|item| NewsItem {
+                    title: item.title,
+                    source_id: platform_id.to_owned(),
+                    rank: item.rank,
+                })
+                .collect());
+        }
+
+        let response: GenericHotlistWrapper =
             serde_json::from_str(raw).map_err(|error| FetchError::ParseResponse {
                 url: platform_id.to_owned(),
                 message: error.to_string(),
             })?;
 
-        let items = items
-            .into_iter()
-            .map(|item| NewsItem {
-                title: item.title,
-                source_id: platform_id.to_owned(),
-                rank: item.rank,
-            })
-            .collect();
+        let mut items = Vec::new();
+        for (index, item) in response.items.into_iter().enumerate() {
+            let title = item.title.and_then(|value| {
+                let trimmed = value.trim().to_owned();
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed)
+                }
+            });
+
+            if let Some(title) = title {
+                items.push(NewsItem {
+                    title,
+                    source_id: platform_id.to_owned(),
+                    rank: (index + 1) as u32,
+                });
+            }
+        }
+
+        if items.is_empty() {
+            return Err(FetchError::ParseResponse {
+                url: platform_id.to_owned(),
+                message: "generic hotlist response contains no valid items".to_owned(),
+            });
+        }
 
         Ok(items)
     }
@@ -595,6 +635,9 @@ pub fn hotlist_parser_for(source_type: &str) -> Box<dyn HotlistParser> {
         "baidu" => Box::new(BaiduHotlistParser),
         "pengpai" | "thepaper" => Box::new(PengpaiHotlistParser),
         "cls" | "cls-hot" => Box::new(ClsHotlistParser),
+        "douyin" | "wallstreetcn-hot" | "wallstreetcn" | "ifeng" | "tieba" => {
+            Box::new(GenericHotlistParser)
+        }
         _ => Box::new(GenericHotlistParser),
     }
 }
@@ -1783,6 +1826,24 @@ mod tests {
         let generic_parser = hotlist_parser_for("generic");
         let generic_raw = r#"[{"title": "测试", "rank": 1}]"#;
         assert!(generic_parser.parse(generic_raw, "generic").is_ok());
+
+        // 测试 generic parser 支持 newsnow 包装响应
+        let wrapped_generic_raw = r#"{"status":"success","items":[{"title":"测试包装响应"}]}"#;
+        assert!(generic_parser.parse(wrapped_generic_raw, "generic").is_ok());
+
+        // 测试新增平台别名走 generic parser
+        let douyin_parser = hotlist_parser_for("douyin");
+        assert!(douyin_parser.parse(wrapped_generic_raw, "douyin").is_ok());
+        let wallstreetcn_parser = hotlist_parser_for("wallstreetcn-hot");
+        assert!(
+            wallstreetcn_parser
+                .parse(wrapped_generic_raw, "wallstreetcn-hot")
+                .is_ok()
+        );
+        let ifeng_parser = hotlist_parser_for("ifeng");
+        assert!(ifeng_parser.parse(wrapped_generic_raw, "ifeng").is_ok());
+        let tieba_parser = hotlist_parser_for("tieba");
+        assert!(tieba_parser.parse(wrapped_generic_raw, "tieba").is_ok());
 
         // 测试未知类型默认为 generic
         let unknown_parser = hotlist_parser_for("unknown");

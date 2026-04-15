@@ -14,6 +14,7 @@
 
 - `AnalysisProvider` trait
 - `MockAnalysisProvider`
+- 最小 `openai-compatible` provider
 - `AiAnalysis` 结构化结果
 - Markdown 渲染入口
 
@@ -23,9 +24,12 @@
 
 - `NewsItem[]`
 - `RunContext`
-- provider 名称
+- `ProviderConfig`
+- `provider`
+- `timeout_secs` / `retry_attempts`
 - `max_items`
-- 可选 prompt
+- 可选 `prompt`
+- 可选 `model` / `base_url` / `api_key` / `api_key_env`
 
 ### 输出
 
@@ -42,8 +46,9 @@
 
 - 已实现 provider：
   `mock`
-- 未实现 provider：
-  其他真实远程 LLM provider
+  `openai-compatible`
+- 当前仍未实现 provider：
+  更完整的 provider 矩阵与流式输出
 
 ## 当前验证入口
 

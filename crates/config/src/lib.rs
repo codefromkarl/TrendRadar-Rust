@@ -156,6 +156,18 @@ pub struct AiAnalysisConfig {
     /// 可选 prompt 提示。
     #[serde(default)]
     pub prompt: Option<String>,
+    /// 真实 provider 使用的模型名称。
+    #[serde(default)]
+    pub model: Option<String>,
+    /// 真实 provider 的 API base URL。
+    #[serde(default)]
+    pub base_url: Option<String>,
+    /// 直接提供 API key，适合受控测试或局部运行配置。
+    #[serde(default)]
+    pub api_key: Option<String>,
+    /// 读取 API key 的环境变量名。
+    #[serde(default)]
+    pub api_key_env: Option<String>,
 }
 
 impl Default for AiAnalysisConfig {
@@ -167,6 +179,10 @@ impl Default for AiAnalysisConfig {
             retry_attempts: 0,
             max_items: default_ai_max_items(),
             prompt: None,
+            model: None,
+            base_url: None,
+            api_key: None,
+            api_key_env: None,
         }
     }
 }
@@ -243,6 +259,12 @@ pub struct NotificationConfig {
     /// 企业微信 Webhook URL。
     #[serde(default)]
     pub wecom_webhook_url: Option<String>,
+    /// Discord Webhook URL。
+    #[serde(default)]
+    pub discord_webhook_url: Option<String>,
+    /// ntfy topic URL。
+    #[serde(default)]
+    pub ntfy_topic_url: Option<String>,
 }
 
 /// 通知 sink 类型。
@@ -259,6 +281,10 @@ pub enum NotificationSinkKind {
     Wecom,
     /// Slack webhook。
     Slack,
+    /// Discord webhook。
+    Discord,
+    /// ntfy topic。
+    Ntfy,
 }
 
 /// 单个通知 sink 配置。
@@ -549,7 +575,10 @@ mod tests {
                 "timeout_secs":20,
                 "retry_attempts":2,
                 "max_items":3,
-                "prompt":"focus on ai"
+                "prompt":"focus on ai",
+                "model":"gpt-4.1-mini",
+                "base_url":"https://example.com/v1/responses",
+                "api_key_env":"OPENAI_API_KEY"
             }
         }"#;
         let config = load_config_from_json_str(input)?;
@@ -563,6 +592,10 @@ mod tests {
                 retry_attempts: 2,
                 max_items: 3,
                 prompt: Some("focus on ai".to_owned()),
+                model: Some("gpt-4.1-mini".to_owned()),
+                base_url: Some("https://example.com/v1/responses".to_owned()),
+                api_key: None,
+                api_key_env: Some("OPENAI_API_KEY".to_owned()),
             }
         );
         Ok(())
@@ -610,14 +643,16 @@ mod tests {
                 "enabled":true,
                 "sinks":[
                     {"kind":"webhook","url":"https://hooks.example.com/webhook"},
-                    {"kind":"slack","url":"https://hooks.slack.com/services/test"}
+                    {"kind":"slack","url":"https://hooks.slack.com/services/test"},
+                    {"kind":"discord","url":"https://discord.com/api/webhooks/test"},
+                    {"kind":"ntfy","url":"https://ntfy.sh/trendradar"}
                 ]
             }
         }"#;
         let config = load_config_from_json_str(input)?;
 
         assert!(config.notification.enabled);
-        assert_eq!(config.notification.sinks.len(), 2);
+        assert_eq!(config.notification.sinks.len(), 4);
         assert_eq!(
             config.notification.sinks[0].kind,
             NotificationSinkKind::Webhook
@@ -633,6 +668,45 @@ mod tests {
         assert_eq!(
             config.notification.sinks[1].url,
             "https://hooks.slack.com/services/test"
+        );
+        assert_eq!(
+            config.notification.sinks[2].kind,
+            NotificationSinkKind::Discord
+        );
+        assert_eq!(
+            config.notification.sinks[2].url,
+            "https://discord.com/api/webhooks/test"
+        );
+        assert_eq!(
+            config.notification.sinks[3].kind,
+            NotificationSinkKind::Ntfy
+        );
+        assert_eq!(
+            config.notification.sinks[3].url,
+            "https://ntfy.sh/trendradar"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn legacy_notification_channels_load_from_json() -> Result<(), Box<dyn Error>> {
+        let input = r#"{
+            "timezone":"Asia/Shanghai",
+            "notification":{
+                "enabled":true,
+                "discord_webhook_url":"https://discord.com/api/webhooks/legacy",
+                "ntfy_topic_url":"https://ntfy.sh/trendradar"
+            }
+        }"#;
+        let config = load_config_from_json_str(input)?;
+
+        assert_eq!(
+            config.notification.discord_webhook_url.as_deref(),
+            Some("https://discord.com/api/webhooks/legacy")
+        );
+        assert_eq!(
+            config.notification.ntfy_topic_url.as_deref(),
+            Some("https://ntfy.sh/trendradar")
         );
         Ok(())
     }

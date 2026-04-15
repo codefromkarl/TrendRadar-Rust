@@ -1,0 +1,12 @@
+[Unit]
+Description=TrendRadar one-shot run
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=trendradar
+Group=trendradar
+WorkingDirectory=/var/lib/trendradar
+ExecStart=/usr/local/bin/trendradar --config /etc/trendradar/config.json --db /var/lib/trendradar/trendradar.db --output json
+

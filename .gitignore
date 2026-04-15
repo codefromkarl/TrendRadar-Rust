@@ -16,3 +16,8 @@
 /research-results.tsv
 /research-results.prev.tsv
 /analyze
+/config-ai-scan.json
+/trendradar.db
+/deploy/runtime/config.json
+/deploy/runtime/data/*
+!/deploy/runtime/data/.gitkeep

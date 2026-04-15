@@ -18,12 +18,12 @@
 - 已收敛仓储 trait
 - 已实现 SQLite 最小实现
 - 已补固定 fixture 测试
-- 已预留远程对象存储配置与应用边界
+- 已落最小真实远程对象存储接入与本地验证原型
 
 ## 暂不处理
 
-- 远程存储
 - 复杂迁移框架
+- 远程对象存储的凭证治理与更多 provider 兼容细节
 
 ## 建议子任务
 
@@ -43,8 +43,10 @@
 - 已固定 `(source_id, title)` 去重并保留更优 `rank`
 - 已补空仓库边界断言，固定初始读取结果为空集合
 - `AppConfig.storage.backend` 已预留 `sqlite / s3` 切换位
-- `app` 当前对 `s3` 后端会明确报 “not implemented yet”，避免默默退回本地 SQLite
-- 真实文件数据库路径与迁移框架仍留待后续阶段
+- 已新增 `OpendalObjectStoreNewsRepository`，用统一对象布局打通真实 `s3/oss` provider
+- 已保留 `FileObjectStoreNewsRepository` 与 `mock-s3` 路由，用于本地布局验证与无需云环境的回归测试
+- `app` 当前已把 `storage.backend = "s3"` 路由到 `s3/aws-s3/oss/aliyun-oss/mock-s3`，并在缺失 bucket / endpoint 或 provider 不支持时显式报错，避免默默退回本地 SQLite
+- 真实文件数据库路径与 schema 迁移框架仍留待后续阶段
 
 ## 验证命令
 

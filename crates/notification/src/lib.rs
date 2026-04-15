@@ -43,6 +43,10 @@ pub enum NotificationSinkKind {
     Wecom,
     /// Slack webhook。
     Slack,
+    /// Discord webhook。
+    Discord,
+    /// ntfy topic URL。
+    Ntfy,
 }
 
 impl fmt::Display for NotificationSinkKind {
@@ -53,6 +57,8 @@ impl fmt::Display for NotificationSinkKind {
             Self::Dingtalk => "dingtalk",
             Self::Wecom => "wecom",
             Self::Slack => "slack",
+            Self::Discord => "discord",
+            Self::Ntfy => "ntfy",
         };
         formatter.write_str(name)
     }
@@ -167,6 +173,40 @@ impl SlackNotifier {
     }
 }
 
+/// Discord 通知器。
+pub struct DiscordNotifier {
+    url: String,
+    client: reqwest::blocking::Client,
+}
+
+impl DiscordNotifier {
+    /// 创建 Discord 通知器。
+    #[must_use]
+    pub fn new(url: impl Into<String>) -> Self {
+        Self {
+            url: url.into(),
+            client: reqwest::blocking::Client::new(),
+        }
+    }
+}
+
+/// ntfy 通知器。
+pub struct NtfyNotifier {
+    url: String,
+    client: reqwest::blocking::Client,
+}
+
+impl NtfyNotifier {
+    /// 创建 ntfy 通知器。
+    #[must_use]
+    pub fn new(url: impl Into<String>) -> Self {
+        Self {
+            url: url.into(),
+            client: reqwest::blocking::Client::new(),
+        }
+    }
+}
+
 impl Notifier for WebhookNotifier {
     fn send(&self, subject: &str, body: &str) -> Result<()> {
         let payload = serde_json::json!({
@@ -227,6 +267,22 @@ impl Notifier for SlackNotifier {
     }
 }
 
+impl Notifier for DiscordNotifier {
+    fn send(&self, subject: &str, body: &str) -> Result<()> {
+        let payload = serde_json::json!({
+            "content": format!("{subject}\n{body}")
+        });
+
+        post_json(&self.client, &self.url, payload, "discord")
+    }
+}
+
+impl Notifier for NtfyNotifier {
+    fn send(&self, subject: &str, body: &str) -> Result<()> {
+        post_text(&self.client, &self.url, body, subject, "ntfy")
+    }
+}
+
 impl fmt::Debug for ConsoleNotifier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ConsoleNotifier").finish()
@@ -265,6 +321,30 @@ impl fmt::Debug for WeComNotifier {
     }
 }
 
+impl fmt::Debug for SlackNotifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SlackNotifier")
+            .field("url", &self.url)
+            .finish()
+    }
+}
+
+impl fmt::Debug for DiscordNotifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("DiscordNotifier")
+            .field("url", &self.url)
+            .finish()
+    }
+}
+
+impl fmt::Debug for NtfyNotifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("NtfyNotifier")
+            .field("url", &self.url)
+            .finish()
+    }
+}
+
 fn post_json(
     client: &reqwest::blocking::Client,
     url: &str,
@@ -288,6 +368,32 @@ fn post_json(
     }
 
     info!(status, channel, "notification sent");
+    Ok(())
+}
+
+fn post_text(
+    client: &reqwest::blocking::Client,
+    url: &str,
+    body: &str,
+    subject: &str,
+    channel: &str,
+) -> Result<()> {
+    let response = client
+        .post(url)
+        .header("title", subject)
+        .header("content-type", "text/plain; charset=utf-8")
+        .body(body.to_owned())
+        .send()
+        .map_err(|error| NotificationError::Network {
+            message: format!("{channel} POST {url}: {error}"),
+        })?;
+
+    if !response.status().is_success() {
+        return Err(NotificationError::Network {
+            message: format!("{channel} POST {url} returned status {}", response.status()),
+        });
+    }
+
     Ok(())
 }
 
@@ -374,6 +480,12 @@ pub fn build_notifiers_from_specs(
             NotificationSinkKind::Slack => {
                 notifiers.push(Box::new(SlackNotifier::new(&spec.url)));
             }
+            NotificationSinkKind::Discord => {
+                notifiers.push(Box::new(DiscordNotifier::new(&spec.url)));
+            }
+            NotificationSinkKind::Ntfy => {
+                notifiers.push(Box::new(NtfyNotifier::new(&spec.url)));
+            }
         }
     }
 
@@ -388,9 +500,9 @@ pub fn build_notifiers_from_specs(
 #[allow(clippy::expect_used)]
 mod tests {
     use super::{
-        ConsoleNotifier, DingTalkNotifier, FeishuNotifier, NotificationSinkKind,
-        NotificationSinkSpec, Notifier, SlackNotifier, WeComNotifier, WebhookNotifier,
-        build_notifiers, build_notifiers_from_specs,
+        ConsoleNotifier, DingTalkNotifier, DiscordNotifier, FeishuNotifier, NotificationSinkKind,
+        NotificationSinkSpec, Notifier, NtfyNotifier, SlackNotifier, WeComNotifier,
+        WebhookNotifier, build_notifiers, build_notifiers_from_specs,
     };
     use std::error::Error;
 
@@ -472,7 +584,7 @@ mod tests {
     }
 
     #[test]
-    fn build_notifiers_from_specs_supports_slack_and_webhook() {
+    fn build_notifiers_from_specs_supports_slack_discord_ntfy_and_webhook() {
         let specs = vec![
             NotificationSinkSpec {
                 kind: NotificationSinkKind::Webhook,
@@ -482,10 +594,18 @@ mod tests {
                 kind: NotificationSinkKind::Slack,
                 url: "http://example.com/slack".to_owned(),
             },
+            NotificationSinkSpec {
+                kind: NotificationSinkKind::Discord,
+                url: "http://example.com/discord".to_owned(),
+            },
+            NotificationSinkSpec {
+                kind: NotificationSinkKind::Ntfy,
+                url: "http://example.com/ntfy".to_owned(),
+            },
         ];
         let notifiers = build_notifiers_from_specs(true, &specs);
 
-        assert_eq!(notifiers.len(), 2);
+        assert_eq!(notifiers.len(), 4);
     }
 
     #[test]
@@ -565,6 +685,44 @@ mod tests {
             .create();
 
         let notifier = SlackNotifier::new(format!("{}/slack", server.url()));
+        notifier.send("Test", "Hello")?;
+
+        mock.assert();
+        Ok(())
+    }
+
+    #[test]
+    fn discord_notifier_sends_expected_payload() -> Result<(), Box<dyn Error>> {
+        let mut server = mockito::Server::new();
+        let payload = serde_json::json!({
+            "content": "Test\nHello"
+        });
+        let mock = server
+            .mock("POST", "/discord")
+            .match_header("content-type", "application/json")
+            .match_body(payload.to_string().into_bytes())
+            .with_status(200)
+            .create();
+
+        let notifier = DiscordNotifier::new(format!("{}/discord", server.url()));
+        notifier.send("Test", "Hello")?;
+
+        mock.assert();
+        Ok(())
+    }
+
+    #[test]
+    fn ntfy_notifier_sends_plain_text_payload() -> Result<(), Box<dyn Error>> {
+        let mut server = mockito::Server::new();
+        let mock = server
+            .mock("POST", "/ntfy/topic")
+            .match_header("title", "Test")
+            .match_header("content-type", "text/plain; charset=utf-8")
+            .match_body("Hello")
+            .with_status(200)
+            .create();
+
+        let notifier = NtfyNotifier::new(format!("{}/ntfy/topic", server.url()));
         notifier.send("Test", "Hello")?;
 
         mock.assert();

@@ -1,0 +1,19 @@
+services:
+  trendradar:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: trendradar:local
+    working_dir: /app
+    volumes:
+      - ./runtime/config.json:/config/config.json:ro
+      - ./runtime/data:/data
+    command:
+      - --config
+      - /config/config.json
+      - --db
+      - /data/trendradar.db
+      - --output
+      - json
+    restart: "no"
+

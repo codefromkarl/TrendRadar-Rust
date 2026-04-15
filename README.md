@@ -67,9 +67,10 @@ flowchart LR
 
 - 当前阶段：v1.2 工程收口，已完成 Wave 8 级别的核心功能补齐
 - 当前收尾判断：当前 Rust 内核重构迁移已经可以进入收尾阶段，详见 [项目收尾说明](./docs/project-closeout.md)
-- 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 启动链路、`config -> fetch -> analyze -> storage -> report` 的 fixture / HTTP 系统链路、多个 crate 级边界样例，以及根级 `tests/system/` 下 68 条成功路径 / 空输入 / 错误路径 / 阶段组合样例；当前全工作区共 232 tests 通过
+- 当前增量轮次：第 1 轮 `v2.0.0-beta` 已完成；第 2 轮 `v2.1.0` 已启动并落下 `C1` 真实远程对象存储的最小闭环
+- 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 启动链路、`config -> fetch -> analyze -> storage -> report` 的 fixture / HTTP 系统链路、多个 crate 级边界样例，以及根级 `tests/system/` 下 68 条成功路径 / 空输入 / 错误路径 / 阶段组合样例；当前全工作区共 235 tests 通过
 - 已建立内容：CI 基础验证、系统测试模板、Git hooks、提交模板、并行迁移规则
-- 当前不包含：真实远程对象存储实现、真实远程 LLM provider、完整 MCP 协议兼容层、Homebrew 等更完整的分发入口，以及更大范围的生态接入
+- 当前不包含：更完整的 LLM provider 矩阵、完整 MCP 协议兼容层、Homebrew 等更完整的分发入口，以及更大范围的生态接入
 
 ## 安装
 
@@ -108,6 +109,18 @@ cargo install --path crates/app --locked
 trendradar --help
 trendradar --version
 ```
+
+### 方式 3：Docker 运行
+
+仓库已提供官方 one-shot Docker 入口，适合本地定时任务、CI 或配合 `systemd timer` 调度：
+
+```bash
+cargo build --release -p trendradar-app
+cp deploy/examples/config.rss.json deploy/runtime/config.json
+docker compose -f deploy/docker-compose.yml run --rm trendradar --dry-run
+```
+
+完整说明见 [部署指南](./docs/deployment.md)。
 
 ## 快速开始
 
@@ -216,8 +229,11 @@ cargo bench --package trendradar-app --bench pipeline_bench
 - [架构说明](./docs/architecture.md)
 - [性能基线](./docs/benchmark-baseline.md)
 - [Python 对比基线](./docs/benchmark-python-baseline.md)
+- [对外能力总览](./docs/public-capability-overview.md)
+- [运行稳定性说明](./docs/runtime-stability.md)
 - [项目收尾说明](./docs/project-closeout.md)
 - [环境准备](./docs/environment-setup.md)
+- [部署指南](./docs/deployment.md)
 - [迁移策略](./docs/migration-strategy.md)
 - [实施计划](./docs/implementation-plan.md)
 - [后续拓展执行文档](./docs/extension-execution-plan.md)

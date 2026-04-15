@@ -1,11 +1,14 @@
 //! 存储抽象：内存与文件 SQLite 仓储。
 
 use chrono::Utc;
+use opendal::Operator;
+use opendal::services::{Fs, Oss, S3};
 use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs::{create_dir_all, read_to_string, write};
 use std::path::{Path, PathBuf};
+use tokio::runtime::{Builder as RuntimeBuilder, Runtime};
 use trendradar_domain::TrendRadarError;
 use trendradar_domain::{NewsItem, Result};
 
@@ -98,6 +101,59 @@ struct ObjectStoreShard {
     items: Vec<NewsItem>,
 }
 
+fn normalize_prefix(prefix: &str) -> String {
+    let trimmed = prefix.trim_matches('/');
+    if trimmed.is_empty() {
+        "trendradar".to_owned()
+    } else {
+        trimmed.to_owned()
+    }
+}
+
+fn index_key(prefix: &str) -> String {
+    format!("{prefix}/index/latest.json")
+}
+
+fn shard_key(prefix: &str, date: &str, source_id: &str) -> String {
+    format!("{prefix}/shards/{date}/{source_id}.json")
+}
+
+fn merge_shard_items(
+    source_id: &str,
+    existing_items: impl IntoIterator<Item = NewsItem>,
+    incoming_items: impl IntoIterator<Item = NewsItem>,
+) -> ObjectStoreShard {
+    let mut best_by_title: BTreeMap<String, u32> = BTreeMap::new();
+
+    for item in existing_items.into_iter().chain(incoming_items) {
+        best_by_title
+            .entry(item.title)
+            .and_modify(|rank| *rank = (*rank).min(item.rank))
+            .or_insert(item.rank);
+    }
+
+    ObjectStoreShard {
+        source_id: source_id.to_owned(),
+        items: best_by_title
+            .into_iter()
+            .map(|(title, rank)| NewsItem {
+                title,
+                source_id: source_id.to_owned(),
+                rank,
+            })
+            .collect(),
+    }
+}
+
+fn sort_items(items: &mut [NewsItem]) {
+    items.sort_by(|left, right| {
+        left.rank
+            .cmp(&right.rank)
+            .then_with(|| left.source_id.cmp(&right.source_id))
+            .then_with(|| left.title.cmp(&right.title))
+    });
+}
+
 /// 文件系统对象存储原型仓储。
 ///
 /// 该仓储使用本地目录模拟远程对象存储布局：
@@ -116,7 +172,7 @@ impl FileObjectStoreNewsRepository {
     pub fn open(root: &Path, prefix: impl Into<String>) -> Result<Self> {
         let repository = Self {
             root: root.to_path_buf(),
-            prefix: prefix.into(),
+            prefix: normalize_prefix(&prefix.into()),
         };
         repository.initialize_layout()?;
         Ok(repository)
@@ -143,10 +199,7 @@ impl FileObjectStoreNewsRepository {
     }
 
     fn index_path(&self) -> PathBuf {
-        self.root
-            .join(&self.prefix)
-            .join("index")
-            .join("latest.json")
+        self.root.join(index_key(&self.prefix))
     }
 
     fn load_index(&self) -> Result<ObjectStoreIndex> {
@@ -324,37 +377,13 @@ impl NewsRepository for FileObjectStoreNewsRepository {
         });
 
         for (source_id, incoming_items) in grouped {
-            let key = format!("{}/shards/{date}/{source_id}.json", self.prefix);
-            let mut best_by_title: BTreeMap<String, u32> = BTreeMap::new();
-
-            if index.shard_keys.iter().any(|existing| existing == &key) {
-                let existing = self.read_shard(&key)?;
-                for item in existing.items {
-                    best_by_title
-                        .entry(item.title)
-                        .and_modify(|rank| *rank = (*rank).min(item.rank))
-                        .or_insert(item.rank);
-                }
-            }
-
-            for item in incoming_items {
-                best_by_title
-                    .entry(item.title)
-                    .and_modify(|rank| *rank = (*rank).min(item.rank))
-                    .or_insert(item.rank);
-            }
-
-            let shard = ObjectStoreShard {
-                source_id: source_id.clone(),
-                items: best_by_title
-                    .into_iter()
-                    .map(|(title, rank)| NewsItem {
-                        title,
-                        source_id: source_id.clone(),
-                        rank,
-                    })
-                    .collect(),
+            let key = shard_key(&self.prefix, &date, &source_id);
+            let existing_items = if index.shard_keys.iter().any(|existing| existing == &key) {
+                self.read_shard(&key)?.items
+            } else {
+                Vec::new()
             };
+            let shard = merge_shard_items(&source_id, existing_items, incoming_items);
             self.write_shard(&key, &shard)?;
             if !index.shard_keys.iter().any(|existing| existing == &key) {
                 index.shard_keys.push(key);
@@ -389,12 +418,222 @@ impl NewsRepository for FileObjectStoreNewsRepository {
                 rank,
             })
             .collect();
-        items.sort_by(|left, right| {
-            left.rank
-                .cmp(&right.rank)
-                .then_with(|| left.source_id.cmp(&right.source_id))
-                .then_with(|| left.title.cmp(&right.title))
+        sort_items(&mut items);
+        Ok(items)
+    }
+}
+
+/// 基于 OpenDAL 的真实对象存储仓储。
+pub struct OpendalObjectStoreNewsRepository {
+    runtime: Runtime,
+    operator: Operator,
+    prefix: String,
+    backend: String,
+}
+
+impl OpendalObjectStoreNewsRepository {
+    fn new(
+        runtime: Runtime,
+        operator: Operator,
+        backend: impl Into<String>,
+        prefix: impl Into<String>,
+    ) -> Self {
+        Self {
+            runtime,
+            operator,
+            prefix: normalize_prefix(&prefix.into()),
+            backend: backend.into(),
+        }
+    }
+
+    fn build_runtime() -> Result<Runtime> {
+        RuntimeBuilder::new_multi_thread()
+            .enable_all()
+            .build()
+            .map_err(|error| TrendRadarError::Storage {
+                message: format!("failed to initialize object store runtime: {error}"),
+            })
+    }
+
+    /// 使用 OpenDAL FS backend 创建对象存储仓储。
+    ///
+    /// 该入口主要用于在不依赖真实云环境时验证对象布局与读写语义。
+    pub fn open_fs(root: &Path, prefix: impl Into<String>) -> Result<Self> {
+        let root = root.to_string_lossy().to_string();
+        let builder = Fs::default().root(&root);
+        let operator = Operator::new(builder)
+            .map_err(|error| TrendRadarError::Storage {
+                message: format!("failed to initialize fs object store builder: {error}"),
+            })?
+            .finish();
+        Ok(Self::new(Self::build_runtime()?, operator, "fs", prefix))
+    }
+
+    /// 使用 OpenDAL S3 backend 创建对象存储仓储。
+    pub fn open_s3(
+        bucket: &str,
+        endpoint: Option<&str>,
+        region: Option<&str>,
+        prefix: impl Into<String>,
+    ) -> Result<Self> {
+        let mut builder = S3::default().root("/").bucket(bucket);
+        if let Some(endpoint) = endpoint {
+            builder = builder.endpoint(endpoint);
+        }
+        if let Some(region) = region {
+            builder = builder.region(region);
+        }
+
+        let operator = Operator::new(builder)
+            .map_err(|error| TrendRadarError::Storage {
+                message: format!("failed to initialize s3 object store builder: {error}"),
+            })?
+            .finish();
+        Ok(Self::new(Self::build_runtime()?, operator, "s3", prefix))
+    }
+
+    /// 使用 OpenDAL OSS backend 创建对象存储仓储。
+    pub fn open_oss(bucket: &str, endpoint: &str, prefix: impl Into<String>) -> Result<Self> {
+        let builder = Oss::default().root("/").bucket(bucket).endpoint(endpoint);
+        let operator = Operator::new(builder)
+            .map_err(|error| TrendRadarError::Storage {
+                message: format!("failed to initialize oss object store builder: {error}"),
+            })?
+            .finish();
+        Ok(Self::new(Self::build_runtime()?, operator, "oss", prefix))
+    }
+
+    fn load_index(&self) -> Result<ObjectStoreIndex> {
+        let key = index_key(&self.prefix);
+        let contents = self
+            .runtime
+            .block_on(self.operator.read(&key))
+            .map_err(|error| TrendRadarError::Storage {
+                message: format!("failed to read object index {key}: {error}"),
+            })?;
+        serde_json::from_slice(&contents.to_vec()).map_err(|error| TrendRadarError::Storage {
+            message: format!("failed to parse object index {key}: {error}"),
+        })
+    }
+
+    fn load_index_if_exists(&self) -> Result<Option<ObjectStoreIndex>> {
+        let key = index_key(&self.prefix);
+        if !self
+            .runtime
+            .block_on(self.operator.exists(&key))
+            .map_err(|error| TrendRadarError::Storage {
+                message: format!("failed to stat object index {key}: {error}"),
+            })?
+        {
+            return Ok(None);
+        }
+
+        self.load_index().map(Some)
+    }
+
+    fn write_index(&self, index: &ObjectStoreIndex) -> Result<()> {
+        let key = index_key(&self.prefix);
+        let body = serde_json::to_vec_pretty(index).map_err(|error| TrendRadarError::Storage {
+            message: format!("failed to serialize object index {key}: {error}"),
+        })?;
+        self.runtime
+            .block_on(self.operator.write(&key, body))
+            .map_err(|error| TrendRadarError::Storage {
+                message: format!("failed to write object index {key}: {error}"),
+            })
+            .map(|_| ())
+    }
+
+    fn read_shard(&self, key: &str) -> Result<ObjectStoreShard> {
+        let contents = self
+            .runtime
+            .block_on(self.operator.read(key))
+            .map_err(|error| TrendRadarError::Storage {
+                message: format!("failed to read object shard {key}: {error}"),
+            })?;
+        serde_json::from_slice(&contents.to_vec()).map_err(|error| TrendRadarError::Storage {
+            message: format!("failed to parse object shard {key}: {error}"),
+        })
+    }
+
+    fn write_shard(&self, key: &str, shard: &ObjectStoreShard) -> Result<()> {
+        let body = serde_json::to_vec_pretty(shard).map_err(|error| TrendRadarError::Storage {
+            message: format!("failed to serialize object shard {key}: {error}"),
+        })?;
+        self.runtime
+            .block_on(self.operator.write(key, body))
+            .map_err(|error| TrendRadarError::Storage {
+                message: format!("failed to write object shard {key}: {error}"),
+            })
+            .map(|_| ())
+    }
+}
+
+impl NewsRepository for OpendalObjectStoreNewsRepository {
+    fn save_news(&mut self, item: NewsItem) -> Result<()> {
+        self.save_news_batch(&[item])
+    }
+
+    fn save_news_batch(&mut self, items: &[NewsItem]) -> Result<()> {
+        let date = Utc::now().format("%Y-%m-%d").to_string();
+        let mut grouped: BTreeMap<String, Vec<NewsItem>> = BTreeMap::new();
+        for item in items {
+            grouped
+                .entry(item.source_id.clone())
+                .or_default()
+                .push(item.clone());
+        }
+
+        let mut index = self.load_index_if_exists()?.unwrap_or(ObjectStoreIndex {
+            layout_version: 1,
+            backend: self.backend.clone(),
+            updated_at: Utc::now().to_rfc3339(),
+            shard_keys: Vec::new(),
         });
+
+        for (source_id, incoming_items) in grouped {
+            let key = shard_key(&self.prefix, &date, &source_id);
+            let existing_items = if index.shard_keys.iter().any(|existing| existing == &key) {
+                self.read_shard(&key)?.items
+            } else {
+                Vec::new()
+            };
+            let shard = merge_shard_items(&source_id, existing_items, incoming_items);
+            self.write_shard(&key, &shard)?;
+            if !index.shard_keys.iter().any(|existing| existing == &key) {
+                index.shard_keys.push(key);
+            }
+        }
+
+        index.shard_keys.sort();
+        index.updated_at = Utc::now().to_rfc3339();
+        self.write_index(&index)
+    }
+
+    fn list_news(&self) -> Result<Vec<NewsItem>> {
+        let index = self.load_index()?;
+        let mut best_by_key: BTreeMap<(String, String), u32> = BTreeMap::new();
+
+        for key in index.shard_keys {
+            let shard = self.read_shard(&key)?;
+            for item in shard.items {
+                let dedupe = (item.source_id.clone(), item.title.clone());
+                best_by_key
+                    .entry(dedupe)
+                    .and_modify(|rank| *rank = (*rank).min(item.rank))
+                    .or_insert(item.rank);
+            }
+        }
+
+        let mut items: Vec<NewsItem> = best_by_key
+            .into_iter()
+            .map(|((source_id, title), rank)| NewsItem {
+                title,
+                source_id,
+                rank,
+            })
+            .collect();
+        sort_items(&mut items);
         Ok(items)
     }
 }
@@ -498,7 +737,7 @@ impl NewsRepository for MockRemoteNewsRepository {
 mod tests {
     use super::{
         FileObjectStoreNewsRepository, MockRemoteNewsRepository, NewsRepository,
-        SqliteNewsRepository,
+        OpendalObjectStoreNewsRepository, SqliteNewsRepository,
     };
     use std::error::Error;
     use std::fs::read_to_string;
@@ -690,6 +929,36 @@ mod tests {
                 title: "Rust release".to_owned(),
                 source_id: "weibo".to_owned(),
                 rank: 3,
+            },
+            NewsItem {
+                title: "Rust release".to_owned(),
+                source_id: "weibo".to_owned(),
+                rank: 1,
+            },
+            NewsItem {
+                title: "AI chip rally".to_owned(),
+                source_id: "zhihu".to_owned(),
+                rank: 2,
+            },
+        ])?;
+
+        let stored = repository.list_news()?;
+        assert_eq!(stored.len(), 2);
+        assert_eq!(stored[0].title, "Rust release");
+        assert_eq!(stored[0].rank, 1);
+        assert!(dir.path().join("trendradar/index/latest.json").exists());
+        Ok(())
+    }
+
+    #[test]
+    fn opendal_fs_repository_roundtrips_items() -> Result<(), Box<dyn Error>> {
+        let dir = tempfile::tempdir()?;
+        let mut repository = OpendalObjectStoreNewsRepository::open_fs(dir.path(), "trendradar/")?;
+        repository.save_news_batch(&[
+            NewsItem {
+                title: "Rust release".to_owned(),
+                source_id: "weibo".to_owned(),
+                rank: 4,
             },
             NewsItem {
                 title: "Rust release".to_owned(),

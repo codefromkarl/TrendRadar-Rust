@@ -22,6 +22,8 @@
 - `schedule: ScheduleConfig`
 - `rss_feeds: Vec<RssFeedConfig>`（HTTP 模式）
 - `hotlist_apis: Vec<HotlistApiConfig>`（HTTP 模式）
+- `storage: StorageConfig`
+- `ai_analysis: AiAnalysisConfig`
 - `notification: NotificationConfig`
 
 必填字段：
@@ -35,12 +37,14 @@
 - `schedule.collect / analyze / push` 默认值均为 `true`
 - `schedule.window` 默认值为 `null`
 - `rss_feeds` 和 `hotlist_apis` 默认值为空数组
+- `storage` 默认值为 `StorageConfig::default()`
+- `ai_analysis` 默认值为 `AiAnalysisConfig::default()`
 - `notification` 默认值为 `NotificationConfig::default()`
 
 可延后字段：
 
 - 输出目标与输出开关
-- 存储配置
+- 更复杂的配置兼容层
 
 ### 2. 调度配置
 
@@ -103,14 +107,31 @@ RSS 订阅列表：
 
 - `notification.enabled: bool`
 - `notification.sinks: NotificationSinkConfig[]`
-- `notification.sinks[].kind: "webhook" | "feishu" | "dingtalk" | "wecom" | "slack"`
+- `notification.sinks[].kind: "webhook" | "feishu" | "dingtalk" | "wecom" | "slack" | "discord" | "ntfy"`
 - `notification.sinks[].url: String`
 - `notification.webhook_url: Option<String>`
 - `notification.feishu_webhook_url: Option<String>`
 - `notification.dingtalk_webhook_url: Option<String>`
 - `notification.wecom_webhook_url: Option<String>`
+- `notification.discord_webhook_url: Option<String>`
+- `notification.ntfy_topic_url: Option<String>`
 - 所有通知渠道字段缺失时默认回落为 `None`
 - `notification.sinks` 与旧平铺字段可同时存在，`app` 层会合并它们并避免同类型同 URL 重复发送
+
+AI 分析配置：
+
+- `ai_analysis.enabled: bool`
+- `ai_analysis.provider: String`
+- `ai_analysis.timeout_secs: u64`
+- `ai_analysis.retry_attempts: u8`
+- `ai_analysis.max_items: usize`
+- `ai_analysis.prompt: Option<String>`
+- `ai_analysis.model: Option<String>`
+- `ai_analysis.base_url: Option<String>`
+- `ai_analysis.api_key: Option<String>`
+- `ai_analysis.api_key_env: Option<String>`
+- `mock` provider 仅依赖 `max_items` 与可选 `prompt`
+- `openai-compatible` provider 额外依赖 `model`、`base_url` 和 `api_key` / `api_key_env`
 
 ## 错误契约
 
