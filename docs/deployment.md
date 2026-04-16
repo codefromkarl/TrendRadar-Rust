@@ -67,6 +67,9 @@ docker compose -f deploy/docker-compose.yml run --rm trendradar
 
 - `deploy/docker-compose.yml` 使用仓库根目录 `Dockerfile`
 - 当前 Dockerfile 直接打包本机已构建的 release 二进制，因此首次构建前需要先执行 `cargo build --release -p trendradar-app`
+- 镜像已内置 CA 证书，HTTPS RSS / API 请求可直接使用
+- 镜像内 `trendradar` 用户固定为 `uid/gid 1000`，与常见本地工作目录权限更容易对齐
+- `deploy/docker-compose.yml` 把 `--config /config/config.json --db /data/trendradar.db` 固定在 entrypoint 中，因此 `run --rm trendradar --dry-run` 不会再丢失配置路径
 - 容器会把数据库写入 `deploy/runtime/data/trendradar.db`
 - 如需改输出格式，可把 `json` 调整为 `html` / `both` / `table` / `markdown`
 

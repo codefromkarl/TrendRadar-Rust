@@ -8,12 +8,13 @@ services:
     volumes:
       - ./runtime/config.json:/config/config.json:ro
       - ./runtime/data:/data
-    command:
+    entrypoint:
+      - trendradar
       - --config
       - /config/config.json
       - --db
       - /data/trendradar.db
+    command:
       - --output
       - json
     restart: "no"
-

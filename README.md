@@ -117,6 +117,7 @@ trendradar --version
 ```bash
 cargo build --release -p trendradar-app
 cp deploy/examples/config.rss.json deploy/runtime/config.json
+mkdir -p deploy/runtime/data
 docker compose -f deploy/docker-compose.yml run --rm trendradar --dry-run
 ```
 
