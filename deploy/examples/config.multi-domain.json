@@ -1,0 +1,50 @@
+{
+  "timezone": "Asia/Shanghai",
+  "schedule": {
+    "collect": true,
+    "analyze": true,
+    "push": true
+  },
+  "rss_feeds": [
+    {
+      "source_id": "ai-today",
+      "url": "https://news.google.com/rss/search?q=AI%20when%3A1d&hl=en-US&gl=US&ceid=US:en",
+      "max_items": 5
+    },
+    {
+      "source_id": "tech-today",
+      "url": "https://news.google.com/rss/search?q=Technology%20when%3A1d&hl=en-US&gl=US&ceid=US:en",
+      "max_items": 5
+    },
+    {
+      "source_id": "science-today",
+      "url": "https://news.google.com/rss/search?q=Science%20when%3A1d&hl=en-US&gl=US&ceid=US:en",
+      "max_items": 5
+    },
+    {
+      "source_id": "finance-today",
+      "url": "https://news.google.com/rss/search?q=Finance%20when%3A1d&hl=en-US&gl=US&ceid=US:en",
+      "max_items": 5
+    },
+    {
+      "source_id": "world-today",
+      "url": "https://news.google.com/rss/search?q=World%20when%3A1d&hl=en-US&gl=US&ceid=US:en",
+      "max_items": 5
+    }
+  ],
+  "hotlist_apis": [],
+  "keywords": [],
+  "selection": {
+    "high_rank_fallback_max_rank": 3,
+    "min_items_per_source": 2,
+    "min_items_per_domain": 1
+  },
+  "http_timeout_secs": 20,
+  "storage": {
+    "backend": "sqlite"
+  },
+  "notification": {
+    "enabled": false,
+    "sinks": []
+  }
+}

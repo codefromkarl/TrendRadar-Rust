@@ -12,6 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+serde.workspace = true
 serde_json.workspace = true
 trendradar-domain = { path = "../domain" }
 

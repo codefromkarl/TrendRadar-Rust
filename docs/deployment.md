@@ -57,6 +57,12 @@ docker build -t trendradar:local .
 docker compose -f deploy/docker-compose.yml run --rm trendradar --dry-run
 ```
 
+如果你想保留这一轮的完整结构化运行日志，可在真实执行时追加：
+
+```bash
+trendradar --config /config/config.json --db /data/trendradar.db --run-log /data/run-log.json
+```
+
 ### 4. 执行一次真实抓取
 
 ```bash

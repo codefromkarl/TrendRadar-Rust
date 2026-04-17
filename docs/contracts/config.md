@@ -25,6 +25,7 @@
 - `storage: StorageConfig`
 - `ai_analysis: AiAnalysisConfig`
 - `notification: NotificationConfig`
+- `selection: SelectionConfig`
 
 必填字段：
 
@@ -40,6 +41,7 @@
 - `storage` 默认值为 `StorageConfig::default()`
 - `ai_analysis` 默认值为 `AiAnalysisConfig::default()`
 - `notification` 默认值为 `NotificationConfig::default()`
+- `selection` 默认值为 `SelectionConfig::default()`
 
 可延后字段：
 
@@ -117,6 +119,15 @@ RSS 订阅列表：
 - `notification.ntfy_topic_url: Option<String>`
 - 所有通知渠道字段缺失时默认回落为 `None`
 - `notification.sinks` 与旧平铺字段可同时存在，`app` 层会合并它们并避免同类型同 URL 重复发送
+
+结果选取策略：
+
+- `selection.high_rank_fallback_max_rank: Option<u32>`
+- `selection.min_items_per_source: Option<usize>`
+- `selection.min_items_per_domain: Option<usize>`
+- `high_rank_fallback_max_rank` 允许关键词未命中时仍保留 rank 不高于阈值的高热度条目
+- `min_items_per_source` 用于保证每个来源至少保留指定数量的条目
+- `min_items_per_domain` 用于保证每个领域至少保留指定数量的条目，领域由标题和来源信号做启发式分类
 
 AI 分析配置：
 

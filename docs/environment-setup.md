@@ -257,6 +257,7 @@ cargo llvm-cov nextest --workspace --all-features
 ```toml
 [workspace]
 members = [
+    "crates/ai",
     "crates/domain",
     "crates/config",
     "crates/schedule",
@@ -264,6 +265,7 @@ members = [
     "crates/storage",
     "crates/fetch",
     "crates/report",
+    "crates/mcp",
     "crates/notification",
     "crates/app",
 ]

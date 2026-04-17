@@ -187,6 +187,20 @@ impl Default for AiAnalysisConfig {
     }
 }
 
+/// 结果选取策略。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct SelectionConfig {
+    /// 关键词不命中时，仍保留排名不高于该阈值的高热度条目。
+    #[serde(default)]
+    pub high_rank_fallback_max_rank: Option<u32>,
+    /// 每个来源至少保留的条目数。
+    #[serde(default)]
+    pub min_items_per_source: Option<usize>,
+    /// 每个领域至少保留的条目数。
+    #[serde(default)]
+    pub min_items_per_domain: Option<usize>,
+}
+
 /// 应用配置。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -219,6 +233,9 @@ pub struct AppConfig {
     /// 通知配置。
     #[serde(default)]
     pub notification: NotificationConfig,
+    /// 结果选取策略。
+    #[serde(default)]
+    pub selection: SelectionConfig,
 }
 
 /// 默认 HTTP 超时 30 秒。
@@ -309,6 +326,7 @@ impl Default for AppConfig {
             ai_analysis: AiAnalysisConfig::default(),
             keywords: Vec::new(),
             notification: NotificationConfig::default(),
+            selection: SelectionConfig::default(),
         }
     }
 }
@@ -385,7 +403,7 @@ pub fn load_config_from_file(path: &Path) -> Result<AppConfig> {
 mod tests {
     use super::{
         AiAnalysisConfig, AppConfig, NotificationConfig, NotificationSinkKind, RemoteStorageConfig,
-        ScheduleConfig, ScheduleWindowConfig, StorageBackend, StorageConfig,
+        ScheduleConfig, ScheduleWindowConfig, SelectionConfig, StorageBackend, StorageConfig,
         load_config_from_json_str,
     };
     use std::error::Error;
@@ -444,6 +462,7 @@ mod tests {
                 ai_analysis: AiAnalysisConfig::default(),
                 keywords: Vec::new(),
                 notification: NotificationConfig::default(),
+                selection: SelectionConfig::default(),
             }
         );
         Ok(())

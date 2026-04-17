@@ -179,6 +179,7 @@ mod tests {
             ai_analysis: Default::default(),
             keywords: Vec::new(),
             notification: trendradar_config::NotificationConfig::default(),
+            selection: Default::default(),
         };
 
         assert_eq!(
@@ -278,6 +279,7 @@ mod tests {
             ai_analysis: Default::default(),
             keywords: Vec::new(),
             notification: trendradar_config::NotificationConfig::default(),
+            selection: Default::default(),
         };
 
         assert_eq!(
@@ -327,6 +329,7 @@ mod tests {
             ai_analysis: Default::default(),
             keywords: Vec::new(),
             notification: trendradar_config::NotificationConfig::default(),
+            selection: Default::default(),
         };
 
         assert_eq!(
@@ -369,6 +372,7 @@ mod tests {
             ai_analysis: Default::default(),
             keywords: Vec::new(),
             notification: trendradar_config::NotificationConfig::default(),
+            selection: Default::default(),
         };
 
         assert_eq!(
@@ -420,6 +424,7 @@ mod tests {
             ai_analysis: Default::default(),
             keywords: Vec::new(),
             notification: trendradar_config::NotificationConfig::default(),
+            selection: Default::default(),
         };
 
         assert_eq!(

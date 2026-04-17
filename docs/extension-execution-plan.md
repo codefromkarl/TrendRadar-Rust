@@ -145,7 +145,7 @@
 - 已补 `docs/runtime-stability.md`，把这些验证入口收口为部署前检查说明
 - 当前验证结果：
 - `cargo test --workspace`
-- 当前工作区总数：`235 tests passed`
+- 当前工作区总数：`238 tests passed`
 
 ## Phase A：性能与运行时效率
 

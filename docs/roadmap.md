@@ -5,8 +5,8 @@
 
 ## 当前状态
 
-- v1.2 迁移收尾已完成口径校准，后续转入增量演进 / 生态扩展
-- 232 tests passed, 0 clippy issues
+- `v1.x` 迁移收口完成，项目已进入 `v2.x` 增量演进 / 生态扩展阶段
+- 238 tests passed, 0 clippy issues
 - Release binary: 9.6MB
 - CLI: `--config/--db/--output/--verbose/--dry-run/--help/--version`
 - 输出格式: `json / html / both / table / markdown`
@@ -180,9 +180,9 @@
 
 #### P5: 可扩展通知 Sink
 
-- **目标**: 统一 Sink trait + 更多渠道（Telegram/Discord/Slack）
+- **目标**: 保持统一 Sink trait，并继续按需扩展更多渠道（Telegram/邮件/Bark 等）
 - **架构**: `Notifier` trait 已就位
-- **当前**: 已补 `notification.sinks` 可扩展配置、`build_notifiers_from_specs()` sink 构建入口、Slack webhook sink，并在 `app` 层保持对旧平铺 webhook 字段的兼容合并
+- **当前**: 已补 `notification.sinks` 可扩展配置、`build_notifiers_from_specs()` sink 构建入口，并已支持 Slack / Discord / ntfy 等 sink；`app` 层保持对旧平铺 webhook 字段的兼容合并
 - **状态**: ✅ 最小版本已完成
 
 ---

@@ -76,6 +76,9 @@
 - Wave 5 已补 HTTP 超时配置（`with_timeout()` 构造器，由 `AppConfig.http_timeout_secs` 驱动）
 - Wave 5 已补 pipeline resilient 双模式（`run_pipeline_with_fetchers` 新增 `resilient: bool`）
 - Wave 5 已补 3 条 binary smoke test（`--help`、`--version`、`--dry-run` + fixture config）
+- 当前已补 `--run-log <path>` 结构化运行日志输出，包含调度决策、阶段计数、按来源计数、领域摘要和各阶段条目明细
+- 当前已补结果保底策略：`selection.high_rank_fallback_max_rank` + `selection.min_items_per_source` + `selection.min_items_per_domain`，用于在关键词过滤之外保留高热度条目、来源多样性和领域覆盖
+- 当前已补跨来源标题全局去重，避免同一新闻在多个来源桶中重复落库和输出
 - Wave 5 HTTP 错误处理测试已更新为容错模式验证（非错误传播）
 - Wave 6 已补 `render_news_html()` HTML 报告渲染（`--output html/json/both` CLI 参数）
 - Wave 6 已补 `notification` crate 集成（`Notifier` trait + `WebhookNotifier` + `ConsoleNotifier`）

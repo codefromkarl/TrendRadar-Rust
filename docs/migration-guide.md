@@ -2,15 +2,17 @@
 
 本文档帮助从 Python TrendRadar 迁移到 Rust 版本。
 
+如果你想先看“项目层面的全方位对比”，而不是直接看配置字段映射，建议先读 [迁移前后项目对比](./migration-comparison.md)。
+
 ## 快速对照
 
 | 维度 | Python | Rust |
 |------|--------|------|
 | 配置格式 | YAML (`config.yaml`) | JSON (`config.json`) |
-| 运行方式 | `python main.py` | `trendradar` |
-| 数据存储 | SQLite (文件) | SQLite (文件) |
-| 输出格式 | HTML / JSON | JSON / HTML / Table / Markdown |
-| 通知渠道 | 9 种 | 5 种（webhook / console / 飞书 / 钉钉 / 企业微信） |
+| 运行方式 | `trendradar` / `trendradar-mcp` / Docker / GitHub Actions | `trendradar` / Docker one-shot / `systemd timer` |
+| 数据存储 | 本地 SQLite + 远程云存储 | SQLite + 最小 S3 兼容对象存储 |
+| 输出格式 | HTML / JSON + 更完整展示层 | JSON / HTML / Table / Markdown |
+| 通知渠道 | 渠道矩阵更大（含 Telegram / 邮件 / Bark / 个人微信等） | Webhook / Console / 飞书 / 钉钉 / 企业微信 / Slack / Discord / ntfy |
 
 ## 配置字段映射
 
@@ -40,6 +42,9 @@
 |-----------|------|--------|------|
 | `http_timeout_secs` | `u64` | `30` | HTTP 请求超时秒数 |
 | `keywords` | `string[]` | `[]` | 关键词过滤列表（空=不过滤） |
+| `selection.high_rank_fallback_max_rank` | `u32?` | `null` | 关键词不命中时，仍保留高热度条目的 rank 阈值 |
+| `selection.min_items_per_source` | `usize?` | `null` | 每个来源至少保留的条目数，用于保留来源多样性 |
+| `selection.min_items_per_domain` | `usize?` | `null` | 每个领域至少保留的条目数，用于保留跨领域覆盖 |
 | `notification.enabled` | `bool` | `false` | 是否启用通知 |
 | `notification.sinks` | `NotificationSinkConfig[]` | `[]` | 可扩展通知 sink 列表 |
 | `notification.webhook_url` | `string?` | `null` | Webhook URL |
@@ -110,13 +115,14 @@
 
 | Python | Rust | 说明 |
 |--------|------|------|
-| `python main.py --config config.yaml` | `trendradar --config config.json` | 指定配置文件 |
+| `trendradar --config config.yaml` | `trendradar --config config.json` | 指定配置文件 |
 | — | `trendradar --db data/trendradar.db` | 指定数据库路径 |
 | — | `trendradar --output html` | 输出格式（json/html/both/table/markdown） |
 | — | `trendradar --verbose` | 详细日志 |
 | — | `trendradar --dry-run` | 仅打印调度决策 |
 | — | `trendradar --version` | 版本信息 |
 | — | `trendradar --help` | 帮助信息 |
+| — | `trendradar --run-log run.json` | 输出本轮完整结构化运行日志 |
 
 ## 配置文件自动发现
 
@@ -128,16 +134,22 @@ Rust 版本按以下顺序搜索配置文件（无需手动指定 `--config`）�
 
 ## 不再支持的功能
 
-以下 Python 功能在 Rust 当前版本中仍未迁移：
+以下 Python 功能在 Rust 当前版本中仍未完整迁移：
 
 - ❌ 真实远程 LLM provider 与 AI 翻译
 - ❌ 完整 MCP 协议兼容层
-- ❌ 更大范围的通知渠道（Telegram/Email/ntfy/Bark/Slack）
+- ❌ 更大范围的通知渠道（如 Telegram / Email / Bark / 个人微信）
 - ❌ 自动打开浏览器
 - ❌ 版本在线检查
-- ❌ Docker 集成
+- ❌ 更完整的分发与部署矩阵（如 GitHub Actions 主路径）
 
 这些功能可能在后续版本中按需重新实现。
+
+## 结果处理补充说明
+
+- Rust 侧当前会对跨来源完全相同的标题做一次全局去重，优先保留更高热度（更小 rank）的那条。
+- Rust 侧当前会基于标题和来源信号做启发式领域分类，用于运行日志和“每个领域至少保留 N 条”策略。
+- 当前领域分类是启发式规则，不是机器学习分类器。
 
 ## 数据存储
 

@@ -16,6 +16,7 @@
 | 项目 | 信息 |
 | --- | --- |
 | 原始项目 | [TrendRadar](https://github.com/sansan0/TrendRadar) |
+| 迁移基线版本 | Python 原版 `v6.6.1`（`trendradar` 包版本） |
 | 原始许可证 | GPL-3.0（见 [LICENSE](./LICENSE)） |
 | 翻译语言 | Python → Rust |
 | 翻译许可证 | GPL-3.0（与原始项目一致） |
@@ -27,7 +28,7 @@
 
 TrendRadar Rust 不是把旧系统逐文件翻译成 Rust，而是围绕“配置 -> 抓取 -> 归一化 -> 分析 -> 存储 -> 输出”这条主链路，重新建立一个更小、更稳、更容易验证的趋势监控内核。
 
-当前仓库已经完成 Rust 内核主链路迁移，处于 v1.2 工程收口和迁移收尾校准阶段。它已经具备 Rust workspace、验证入口、Git 协作约束、系统测试基线和迁移文档，但仍不追求把旧 Python 系统的全部生态能力一次性搬到 Rust。
+当前仓库已经完成 Rust 内核主链路迁移，`v1.x` 迁移收口已经完成，项目已进入 `v2.x` 增量演进 / 生态扩展阶段。它已经具备 Rust workspace、验证入口、Git 协作约束、系统测试基线和迁移文档，但仍不追求把旧 Python 系统的全部生态能力一次性搬到 Rust。
 
 ## 为什么需要这个仓库
 
@@ -43,7 +44,7 @@ TrendRadar Rust 不是把旧系统逐文件翻译成 Rust，而是围绕“配�
 
 ## 当前核心能力
 
-- **Workspace 基线**：8 个 crate 已按职责拆分，围绕领域、配置、调度、分析、存储、抓取、报告和应用编排建立工作区骨架。
+- **Workspace 基线**：11 个 crate 已按职责拆分，围绕领域、配置、调度、分析、存储、抓取、报告、通知、AI、MCP 和应用编排建立工作区。
 - **固定工具链**：仓库固定 Rust `1.94.1`，并显式纳入 `rustfmt`、`clippy`、`rust-analyzer`、`rust-docs` 等组件。
 - **验证闭环**：`just env-check`、`just verify-basic`、`just verify` 和 `just doc` 提供环境检查、基础验证、完整验证和文档生成入口。
 - **协作约束**：`.githooks/`、`.gitmessage`、分支规范和提交规范已经落地，适合并行迁移阶段使用。
@@ -65,12 +66,22 @@ flowchart LR
 
 ## 当前状态
 
-- 当前阶段：v1.2 工程收口，已完成 Wave 8 级别的核心功能补齐
-- 当前收尾判断：当前 Rust 内核重构迁移已经可以进入收尾阶段，详见 [项目收尾说明](./docs/project-closeout.md)
+- 当前阶段：`v1.x` 迁移收口完成，项目已进入 `v2.x` 增量演进 / 生态扩展阶段
+- 当前收口说明：本轮迁移收口判断与边界说明见 [项目收尾说明](./docs/project-closeout.md)
 - 当前增量轮次：第 1 轮 `v2.0.0-beta` 已完成；第 2 轮 `v2.1.0` 已启动并落下 `C1` 真实远程对象存储的最小闭环
-- 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 启动链路、`config -> fetch -> analyze -> storage -> report` 的 fixture / HTTP 系统链路、多个 crate 级边界样例，以及根级 `tests/system/` 下 68 条成功路径 / 空输入 / 错误路径 / 阶段组合样例；当前全工作区共 235 tests 通过
+- 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 启动链路、`config -> fetch -> analyze -> storage -> report` 的 fixture / HTTP 系统链路、多个 crate 级边界样例，以及根级 `tests/system/` 下 68 条成功路径 / 空输入 / 错误路径 / 阶段组合样例；当前全工作区共 238 tests 通过
 - 已建立内容：CI 基础验证、系统测试模板、Git hooks、提交模板、并行迁移规则
 - 当前不包含：更完整的 LLM provider 矩阵、完整 MCP 协议兼容层、Homebrew 等更完整的分发入口，以及更大范围的生态接入
+
+## 迁移后当前功能一览
+
+- **数据输入**：支持多平台热榜抓取与 RSS 订阅抓取，可统一归一化为内部模型后进入同一条 pipeline。
+- **核心处理**：支持关键词过滤、排序与来源聚合，支持工作日 / 周末差异、时间窗口和冷却周期等调度规则。
+- **存储与输出**：支持 SQLite 本地存储和最小远程对象存储闭环，CLI 可输出 `json`、`html`、`both`、`table`、`markdown`。
+- **通知与集成**：当前支持 Webhook、飞书、钉钉、企业微信、Slack、Discord、ntfy 和 Console 回退输出；提供最小 AI 分析旁路和查询型 MCP 工具服务入口。
+- **交付方式**：支持 release 安装脚本、`cargo install`、Docker one-shot 和 `systemd timer` 调度，适合本地、CI 和周期性任务运行。
+
+如果你更关心“原版 Python 做到了什么、Rust 现在保留了什么、两者差异在哪里”，直接看 [迁移前后项目对比](./docs/migration-comparison.md)。
 
 ## 安装
 
@@ -123,6 +134,8 @@ docker compose -f deploy/docker-compose.yml run --rm trendradar --dry-run
 
 完整说明见 [部署指南](./docs/deployment.md)。
 
+如果你想抓多个领域，并确保每个领域都至少保留一些新闻，可以从 [deploy/examples/config.multi-domain.json](./deploy/examples/config.multi-domain.json) 开始。这个示例默认启用了 `selection.high_rank_fallback_max_rank`、`selection.min_items_per_source` 和 `selection.min_items_per_domain`。
+
 ## 快速开始
 
 ### 环境要求
@@ -162,6 +175,7 @@ just doc
 | `just verify-basic` | 执行 `fmt-check + check + test-basic` |
 | `just verify` | 执行 `fmt-check + lint + test` |
 | `just doc` / `just doc-open` | 生成或打开本地 API 文档 |
+| `trendradar --run-log run.json` | 输出本轮完整结构化运行日志（含去重与领域摘要） |
 
 `just doc` 底层执行的是 `cargo doc --workspace --no-deps`，产物位于 `target/doc`。
 
@@ -230,6 +244,11 @@ cargo bench --package trendradar-app --bench pipeline_bench
 - [架构说明](./docs/architecture.md)
 - [性能基线](./docs/benchmark-baseline.md)
 - [Python 对比基线](./docs/benchmark-python-baseline.md)
+- [迁移前后项目对比](./docs/migration-comparison.md)
+- [业务视角对比](./docs/business-comparison.md)
+- [配置迁移指南](./docs/migration-guide.md)
+- [Vibecoding 复盘](./docs/vibecoding-retrospective.md)
+- [项目完结说明](./docs/project-completion.md)
 - [对外能力总览](./docs/public-capability-overview.md)
 - [运行稳定性说明](./docs/runtime-stability.md)
 - [项目收尾说明](./docs/project-closeout.md)

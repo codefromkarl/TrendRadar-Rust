@@ -1,5 +1,6 @@
 //! 应用编排层：fixture 与 HTTP pipeline 共享调度/分析/存储/报告逻辑。
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
@@ -9,11 +10,12 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 use trendradar_ai::{ProviderConfig, provider_for, render_ai_analysis_markdown};
 use trendradar_analyze::{
-    RankedNews, SourceSummary, filter_by_keywords, group_news_by_source, rank_news,
+    DomainSummary, RankedNews, SourceSummary, classify_domain, dedupe_news_by_title,
+    filter_by_keywords, group_news_by_domain, group_news_by_source, rank_news,
 };
 use trendradar_config::{
     AppConfig, NotificationConfig, NotificationSinkKind as ConfigNotificationSinkKind,
-    StorageBackend, load_default_config, validate_config,
+    SelectionConfig, StorageBackend, load_default_config, validate_config,
 };
 use trendradar_domain::{NewsItem, RunContext};
 use trendradar_fetch::{
@@ -125,6 +127,10 @@ pub struct PipelineResult {
     pub ranked_items: Vec<RankedNews>,
     /// 来源聚合结果。
     pub source_summaries: Vec<SourceSummary>,
+    /// 领域聚合结果。
+    pub domain_summaries: Vec<DomainSummary>,
+    /// 去重后的条目。
+    pub deduped_items: Vec<NewsItem>,
     /// 落库后回读的条目。
     pub stored_items: Vec<NewsItem>,
     /// 结构化 JSON 输出。
@@ -285,27 +291,49 @@ fn run_pipeline_with_fetchers(
         Vec::new()
     };
 
-    // -- Keyword filtering --
-    let filtered_items = filter_by_keywords(&collected_items, &config.keywords);
-    if !config.keywords.is_empty() {
+    // -- Item selection --
+    let filtered_items = select_items(&collected_items, &config.keywords, &config.selection);
+    if !config.keywords.is_empty()
+        || config.selection.high_rank_fallback_max_rank.is_some()
+        || config.selection.min_items_per_source.is_some()
+        || config.selection.min_items_per_domain.is_some()
+    {
         info!(
             before = collected_items.len(),
             after = filtered_items.len(),
             keywords = ?config.keywords,
-            "keyword filtering applied"
+            high_rank_fallback_max_rank = ?config.selection.high_rank_fallback_max_rank,
+            min_items_per_source = ?config.selection.min_items_per_source,
+            min_items_per_domain = ?config.selection.min_items_per_domain,
+            "item selection applied"
+        );
+    }
+
+    let deduped_items = dedupe_news_by_title(&filtered_items);
+    if deduped_items.len() != filtered_items.len() {
+        info!(
+            before = filtered_items.len(),
+            after = deduped_items.len(),
+            removed = filtered_items.len().saturating_sub(deduped_items.len()),
+            "cross-source title dedup applied"
         );
     }
 
     // -- Analyze --
     let ranked_items = if decision.analyze {
-        let ranked = rank_news(&filtered_items);
+        let ranked = rank_news(&deduped_items);
         debug!(count = ranked.len(), "ranked items");
         ranked
     } else {
         Vec::new()
     };
     let source_summaries = if decision.analyze {
-        group_news_by_source(&filtered_items)
+        group_news_by_source(&deduped_items)
+    } else {
+        Vec::new()
+    };
+    let domain_summaries = if decision.analyze {
+        group_news_by_domain(&deduped_items)
     } else {
         Vec::new()
     };
@@ -372,7 +400,7 @@ fn run_pipeline_with_fetchers(
             }
         }
     };
-    repository.save_news_batch(&filtered_items)?;
+    repository.save_news_batch(&deduped_items)?;
     let stored_items = repository.list_news()?;
     info!(count = stored_items.len(), "storage completed");
 
@@ -467,6 +495,8 @@ fn run_pipeline_with_fetchers(
         filtered_items,
         ranked_items,
         source_summaries,
+        domain_summaries,
+        deduped_items,
         stored_items,
         report_json,
         report_html,
@@ -474,6 +504,98 @@ fn run_pipeline_with_fetchers(
         report_markdown,
         ai_analysis_markdown,
     })
+}
+
+fn item_key(item: &NewsItem) -> (String, String) {
+    (item.source_id.clone(), item.title.clone())
+}
+
+fn select_items(
+    items: &[NewsItem],
+    keywords: &[String],
+    selection: &SelectionConfig,
+) -> Vec<NewsItem> {
+    if keywords.is_empty()
+        && selection.high_rank_fallback_max_rank.is_none()
+        && selection.min_items_per_source.is_none()
+        && selection.min_items_per_domain.is_none()
+    {
+        return items.to_vec();
+    }
+
+    let keyword_filtered = filter_by_keywords(items, keywords);
+    let mut selected_keys: BTreeSet<(String, String)> =
+        keyword_filtered.iter().map(item_key).collect();
+
+    let mut ranked_candidates: Vec<&NewsItem> = items.iter().collect();
+    ranked_candidates.sort_by(|left, right| {
+        left.rank
+            .cmp(&right.rank)
+            .then_with(|| left.title.cmp(&right.title))
+            .then_with(|| left.source_id.cmp(&right.source_id))
+    });
+
+    if let Some(max_rank) = selection.high_rank_fallback_max_rank {
+        for item in &ranked_candidates {
+            if item.rank <= max_rank {
+                selected_keys.insert(item_key(item));
+            }
+        }
+    }
+
+    if let Some(min_items_per_source) = selection.min_items_per_source.filter(|value| *value > 0) {
+        let mut kept_counts: BTreeMap<String, usize> = BTreeMap::new();
+        for item in items {
+            if selected_keys.contains(&item_key(item)) {
+                *kept_counts.entry(item.source_id.clone()).or_insert(0) += 1;
+            }
+        }
+
+        for item in &ranked_candidates {
+            let count = kept_counts.entry(item.source_id.clone()).or_insert(0);
+            if *count >= min_items_per_source {
+                continue;
+            }
+
+            if selected_keys.insert(item_key(item)) {
+                *count += 1;
+            }
+        }
+    }
+
+    if let Some(min_items_per_domain) = selection.min_items_per_domain.filter(|value| *value > 0) {
+        let mut kept_counts: BTreeMap<_, usize> = BTreeMap::new();
+        for item in items {
+            if selected_keys.contains(&item_key(item)) {
+                *kept_counts.entry(classify_domain(item)).or_insert(0) += 1;
+            }
+        }
+
+        for item in &ranked_candidates {
+            let domain = classify_domain(item);
+            let count = kept_counts.entry(domain).or_insert(0);
+            if *count >= min_items_per_domain {
+                continue;
+            }
+
+            if selected_keys.insert(item_key(item)) {
+                *count += 1;
+            }
+        }
+    }
+
+    let mut selected: Vec<NewsItem> = items
+        .iter()
+        .filter(|item| selected_keys.contains(&item_key(item)))
+        .cloned()
+        .collect();
+    selected.sort_by(|left, right| {
+        left.rank
+            .cmp(&right.rank)
+            .then_with(|| left.title.cmp(&right.title))
+            .then_with(|| left.source_id.cmp(&right.source_id))
+    });
+    selected
 }
 
 fn collect_items(fetchers: &[Box<dyn Fetcher>], resilient: bool) -> anyhow::Result<Vec<NewsItem>> {
@@ -764,7 +886,7 @@ pub fn default_db_path(config_path: Option<&Path>) -> PathBuf {
 mod tests {
     use super::{
         OutputMode, collect_items, notification_sink_specs, read_last_success_at,
-        run_pipeline_with_fetchers, write_cooldown_state,
+        run_pipeline_with_fetchers, select_items, write_cooldown_state,
     };
     use chrono::TimeZone;
     use std::path::PathBuf;
@@ -832,6 +954,7 @@ mod tests {
             ai_analysis: AiAnalysisConfig::default(),
             keywords: Vec::new(),
             notification: NotificationConfig::default(),
+            selection: Default::default(),
         }
     }
 
@@ -1223,6 +1346,81 @@ mod tests {
             .ok_or_else(|| anyhow::anyhow!("missing ai analysis markdown"))?;
         assert!(markdown.contains("## AI Analysis"));
         assert!(markdown.contains("weibo item"));
+        Ok(())
+    }
+
+    #[test]
+    fn select_items_keeps_multiple_domains_when_minimum_per_domain_is_set() {
+        let items = vec![
+            NewsItem {
+                title: "OpenAI launches new AI model for life sciences research - Axios".to_owned(),
+                source_id: "ai-today".to_owned(),
+                rank: 4,
+            },
+            NewsItem {
+                title: "Finance ministers and top bankers raise serious concerns about Mythos AI model - BBC".to_owned(),
+                source_id: "finance-today".to_owned(),
+                rank: 3,
+            },
+            NewsItem {
+                title: "2026 FIFA World Cup schedule: Qualified teams, groups, match dates - Yahoo Sports".to_owned(),
+                source_id: "sports-today".to_owned(),
+                rank: 5,
+            },
+        ];
+
+        let selection = trendradar_config::SelectionConfig {
+            high_rank_fallback_max_rank: None,
+            min_items_per_source: None,
+            min_items_per_domain: Some(1),
+        };
+
+        let selected = select_items(&items, &["openai".to_owned()], &selection);
+        assert_eq!(selected.len(), 3);
+    }
+
+    #[test]
+    fn pipeline_dedupes_duplicate_titles_before_storage() -> anyhow::Result<()> {
+        struct DuplicateFetcher;
+
+        impl Fetcher for DuplicateFetcher {
+            fn fetch(&self) -> trendradar_fetch::Result<Vec<NewsItem>> {
+                Ok(vec![
+                    NewsItem {
+                        title: "OpenAI launches new AI model for life sciences research - Axios"
+                            .to_owned(),
+                        source_id: "ai-today".to_owned(),
+                        rank: 4,
+                    },
+                    NewsItem {
+                        title: "OpenAI launches new AI model for life sciences research - Axios"
+                            .to_owned(),
+                        source_id: "openai-today".to_owned(),
+                        rank: 2,
+                    },
+                ])
+            }
+        }
+
+        let fetchers: Vec<Box<dyn Fetcher>> = vec![Box::new(DuplicateFetcher)];
+        let mut config = test_config();
+        config.schedule.analyze = true;
+        config.schedule.push = true;
+
+        let result = run_pipeline_with_fetchers(
+            &config,
+            chrono::Utc::now(),
+            &fetchers,
+            None,
+            true,
+            true,
+            OutputMode::Json,
+        )?;
+
+        assert_eq!(result.collected_items.len(), 2);
+        assert_eq!(result.filtered_items.len(), 2);
+        assert_eq!(result.deduped_items.len(), 1);
+        assert_eq!(result.stored_items.len(), 1);
         Ok(())
     }
 

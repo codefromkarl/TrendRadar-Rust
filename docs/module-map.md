@@ -44,7 +44,7 @@
 | JSON / 结构化输出 | `report` | 中 | 直接实现最小版本 | 对固定内部模型输出稳定结果 |
 | CLI 与运行编排 | `app` | 高 | 薄编排 | 能串起配置、抓取、分析、存储和输出的最小闭环，且业务规则仍留在上游 crate |
 | HTML 报告 | `report` | 中 | Wave 6 已实现精简 HTML | 自包含 HTML5，内联 CSS，XSS 转义 |
-| 通知渠道 | `notification` | 中 | Wave 8 / P5 已实现核心渠道与 sink 模型，第 1 轮继续补 Discord / ntfy | `Notifier` trait + Webhook / Console / Feishu / DingTalk / WeCom / Slack / Discord / ntfy |
+| 通知渠道 | `notification` | 中 | Wave 8 / P5 与第 1 轮已实现核心渠道与 sink 模型 | `Notifier` trait + Webhook / Console / Feishu / DingTalk / WeCom / Slack / Discord / ntfy |
 | 最小 AI 分析旁路 | `ai` | 低 | 最小 provider + app 旁路集成 | `mock` provider、最小 `openai-compatible` provider、配置字段与 Markdown 分析输出已落地 |
 | 最小 MCP 查询工具 | `mcp` | 低 | 查询型工具服务入口 | `tools/list` 与查询类 `tools/call` 已落地 |
 | AI 翻译 | 暂不进入核心 crate | 低 | 延后 | 当前不阻塞迁移收尾 |

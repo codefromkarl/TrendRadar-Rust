@@ -13,7 +13,7 @@
 当前工作区测试通过口径：
 
 - `cargo test --workspace`
-- 当前结果：`235 tests passed`
+- 当前结果：`238 tests passed`
 
 ### 2. 系统层恢复能力
 
