@@ -126,7 +126,7 @@ sudo journalctl -u trendradar.service -n 50 --no-pager
 OnUnitActiveSec=30min
 ```
 
-如需修改，编辑 [trendradar.timer](/home/yuanzhi/Develop/ai-research/TrendRadar-Rust/deploy/systemd/trendradar.timer) 后重新加载：
+如需修改，编辑 [trendradar.timer](../deploy/systemd/trendradar.timer) 后重新加载：
 
 ```bash
 sudo systemctl daemon-reload

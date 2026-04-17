@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 
-REPO_ROOT = Path("/home/yuanzhi/Develop/ai-research/TrendRadar-Rust").resolve()
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def in_repo() -> bool:

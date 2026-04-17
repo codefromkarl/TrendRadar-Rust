@@ -26,9 +26,9 @@
 
 关键入口：
 
-- [http_resilient_recovery.rs](/home/yuanzhi/Develop/ai-research/TrendRadar-Rust/tests/system/http_resilient_recovery.rs)
-- [large_input_stability.rs](/home/yuanzhi/Develop/ai-research/TrendRadar-Rust/tests/system/large_input_stability.rs)
-- [large_output_consistency.rs](/home/yuanzhi/Develop/ai-research/TrendRadar-Rust/tests/system/large_output_consistency.rs)
+- [http_resilient_recovery.rs](../tests/system/http_resilient_recovery.rs)
+- [large_input_stability.rs](../tests/system/large_input_stability.rs)
+- [large_output_consistency.rs](../tests/system/large_output_consistency.rs)
 
 ### 3. 重复执行稳定性
 

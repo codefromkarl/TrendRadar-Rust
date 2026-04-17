@@ -76,9 +76,9 @@
 本轮实际执行：
 
 ```bash
-python3 /home/yuanzhi/.codex/skills/seo/scripts/github_readme_lint.py README.md --json
-python3 /home/yuanzhi/.codex/skills/seo/scripts/github_repo_audit.py --repo codefromkarl/TrendRadar-Rust --provider auto --json
-python3 /home/yuanzhi/.codex/skills/seo/scripts/github_community_health.py --repo codefromkarl/TrendRadar-Rust --provider auto --json
+python3 "$HOME/.codex/skills/seo/scripts/github_readme_lint.py" README.md --json
+python3 "$HOME/.codex/skills/seo/scripts/github_repo_audit.py" --repo codefromkarl/TrendRadar-Rust --provider auto --json
+python3 "$HOME/.codex/skills/seo/scripts/github_community_health.py" --repo codefromkarl/TrendRadar-Rust --provider auto --json
 cargo fmt --all --check
 just verify-basic
 ```

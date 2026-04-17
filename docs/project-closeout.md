@@ -51,7 +51,7 @@
 本轮真正影响收尾判断的三个尾项已经处理完：
 
 - `E6`：已补 Rust / Python 的真实主对比值，见 [Python 对比基线](./benchmark-python-baseline.md)
-- `O5`：已补复杂并发慢源 / 失败源组合下的多轮稳定性测试，见 [tests/system/http_resilient_recovery.rs](/home/yuanzhi/Develop/ai-research/TrendRadar-Rust/tests/system/http_resilient_recovery.rs)
+- `O5`：已补复杂并发慢源 / 失败源组合下的多轮稳定性测试，见 [tests/system/http_resilient_recovery.rs](../tests/system/http_resilient_recovery.rs)
 - `P5`：已补最小可扩展通知 sink 模型，见 [配置契约](./contracts/config.md) 与 [app 实施说明](./implementation/app.md)
 
 这些项补完后，仓库已经不再停留在“几乎收完，但还差几个关键尾巴”的状态。

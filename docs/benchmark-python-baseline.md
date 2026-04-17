@@ -79,7 +79,7 @@ cargo bench --package trendradar-app --bench pipeline_bench
 
 Python 真实入口已经固定为：
 
-- 代码入口：`/home/yuanzhi/Develop/ai-research/TrendRadar/trendradar/__main__.py`
+- 代码入口：`<python-trendradar-repo>/trendradar/__main__.py`
 - CLI 入口：`python -m trendradar`
 
 但 Python CLI 当前没有暴露可配置的热榜 API 基址，因此本仓库内新增了一个 benchmark bridge：
@@ -93,7 +93,7 @@ Python 真实入口已经固定为：
 Python 侧当前主对比命令：
 
 ```bash
-/home/yuanzhi/Develop/ai-research/TrendRadar/.venv/bin/python \
+<python-trendradar-repo>/.venv/bin/python \
   scripts/benchmark_python_baseline.py --warmups 5 --runs 10
 ```
 
