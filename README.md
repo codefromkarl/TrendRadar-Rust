@@ -72,6 +72,7 @@ flowchart LR
 - 合理性判断：作为“更小、更稳、更可验证的趋势监控内核”，当前整体是合理且可继续维护的；作为“完整替代 Python 原版的全功能产品”，当前仍有明确边界和缺口
 - 当前收口说明：本轮迁移收口判断与边界说明见 [项目收尾说明](./docs/project-closeout.md)
 - 当前完结口径：项目完结与维护模式说明见 [项目完结说明](./docs/project-completion.md)
+- 完结后维护记录：AI 原生开发注意事项与本地占用整理见 [开发记录：AI 原生开发收口与本地占用整理](./docs/dev-journal/2026-04-27-ai-native-closeout-and-disk-cleanup.md)
 - 当前增量轮次：第 1 轮 `v2.0.0-beta` 已完成；第 2 轮 `v2.1.0` 已启动并落下 `C1` 真实远程对象存储的最小闭环
 - 已验证内容：`just env-check`、`just verify-basic`、`just doc`、`config -> app::bootstrap` 启动链路、`config -> fetch -> analyze -> storage -> report` 的 fixture / HTTP 系统链路、多个 crate 级边界样例，以及根级 `tests/system/` 下 68 条成功路径 / 空输入 / 错误路径 / 阶段组合样例；当前全工作区共 238 tests 通过
 - 已建立内容：CI 基础验证、系统测试模板、Git hooks、提交模板、并行迁移规则
@@ -253,6 +254,7 @@ cargo bench --package trendradar-app --bench pipeline_bench
 - [配置迁移指南](./docs/migration-guide.md)
 - [Vibecoding 复盘](./docs/vibecoding-retrospective.md)
 - [项目完结说明](./docs/project-completion.md)
+- [AI 原生开发收口与本地占用整理](./docs/dev-journal/2026-04-27-ai-native-closeout-and-disk-cleanup.md)
 - [对外能力总览](./docs/public-capability-overview.md)
 - [运行稳定性说明](./docs/runtime-stability.md)
 - [项目收尾说明](./docs/project-closeout.md)
